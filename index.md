@@ -16,21 +16,17 @@ tldr: |
 
 # Introduction
 
-Vision-language-action models (VLAs) have emerged as a powerful paradigm for robot manipulation, enabling policies that map raw visual observations and proprioceptive state to continuous action trajectories, including [π0 (Black et al., 2026)](https://arxiv.org/abs/2410.24164) and [π0.5 (Black et al., 2025)](https://arxiv.org/abs/2504.16054). However, a persistent bottleneck in deploying these models is **inference latency**. Large models require hundreds of milliseconds to produce an action chunk, during which the robot must either idle or execute stale commands. This latency directly limits task execution speed and responsiveness to rapid or dynamic changes.
+Vision-language-action (VLA) policies used for controlling robots are typically deployed with synchronous execution. If you watch demo videos from papers like [pi0](https://arxiv.org/abs/2410.24164), [pi0.5](https://arxiv.org/abs/2504.16054), or [OpenVLA](https://arxiv.org/abs/2406.09246), you'll notice that the robot's motion is a series of movements with short pauses in between. Those pauses are the robot running inference — basically thinking about what to do next. While it's thinking, the robot either idles or blindly executes stale commands while the next plan is being computed. That's a problem, especially if anything in the scene is moving.
 
-**Asynchronous inference** offers a natural solution. By overlapping policy inference with action execution, the robot can operate continuously without pausing on each planning cycle. However, naive asynchronous execution introduces a subtle problem: by the time inference completes, the observation that triggered it is stale. The robot has moved during the inference window, so the generated actions are conditioned on an outdated state.
+The obvious fix is **asynchronous inference** — start computing the next action chunk while the robot is still executing the current one. No more idle time. But this creates a sneaky problem: by the time inference finishes, the observation that triggered it is stale. The robot moved during that window, so the new actions are based on where the robot *was*, not where it *is*.
 
-Existing approaches like [VLASH (Tang et al., 2025)](https://arxiv.org/abs/2512.01031) address this mismatch by rolling forward the robot's proprioceptive state to the expected time of action deployment. But this creates a **temporally disjoint observation**: a current image paired with a future state that lies outside the policy's training distribution. To compensate, VLASH requires a modified fine-tuning procedure that augments training data with temporal offsets, adding cost and complexity to the pipeline.
+[VLASH](https://arxiv.org/abs/2512.01031) tackles this by rolling forward the robot's proprioceptive state to where it *will* be when the new actions deploy. Sounds reasonable — but it only rolls forward the state, not the image. So the policy gets a current camera frame paired with a future robot state, an input combination it never saw during training. To make this work, VLASH needs a special fine-tuning procedure with temporal offsets baked in. That's doable, but it adds cost and complexity.
 
-We ask the question: **can asynchronous inference work without any training-time modifications?**
+This got us thinking: **what if you didn't need to change fine-tuning at all?**
 
 > **Key Insight:** The distribution mismatch in prior approaches arises not from asynchrony itself, but from the *partial* roll-forward. If both the image and state observations are rolled forward to the same future timestep, the policy receives a temporally consistent input that matches its training distribution — eliminating the need for offset-aware fine-tuning.
 
-We validate this idea in three stages:
-
-1. We use **privileged simulator access** in the [LIBERO benchmark (Liu et al., 2023)](https://arxiv.org/abs/2306.03310) to render ground-truth future observations, confirming with a pre-trained pi0 policy that aligned future observations recover full asynchronous speedups without any fine-tuning.
-2. We replace privileged rendering with the [COSMOS world model (Kim et al., 2026)](https://arxiv.org/abs/2601.16163), which predicts future visual observations from planned actions and rolled-forward state, removing the simulator dependency and providing a path toward real-robot deployment.
-3. We introduce a **dynamic task benchmark** that augments LIBERO with constant-velocity object motion tied to wall-clock time, creating a setting where inference latency directly increases task difficulty.
+We tested this idea in three steps. First, we used privileged simulator access in [LIBERO](https://arxiv.org/abs/2306.03310) to render ground-truth future observations and confirmed that an unmodified [pi0](https://arxiv.org/abs/2410.24164) policy works just as well asynchronously — no re-training needed. Then we swapped out the simulator for the [COSMOS world model](https://arxiv.org/abs/2601.16163), which predicts future frames from planned actions, removing the simulator dependency entirely. Finally, we built a dynamic version of LIBERO where objects move in real time, making inference latency directly hurt performance — exactly the kind of setting where async really matters.
 
 ## Contributions
 
@@ -63,9 +59,7 @@ The next action chunk is then computed as $\pi(o_{t+N})$ and is ready at the chu
 
 ## World Model Generalization
 
-The privileged rollout procedure requires read/write access to the simulator's physics state, making it applicable only to simulation environments. On a physical robot, the forward rollout requires a **predictive world model** to synthesize the future image $I_{t+N}$.
-
-We propose using the [COSMOS world model (Kim et al., 2026)](https://arxiv.org/abs/2601.16163) to predict future visual observations from planned actions and rolled-forward state. This removes the simulator dependency and provides a viable path toward real-robot deployment.
+Of course, the privileged rollout trick only works when you have a simulator to peek into. On a real robot, there's no MuJoCo state to save and restore. So instead, we use the [COSMOS world model](https://arxiv.org/abs/2601.16163) to *imagine* what the future frame will look like, given the planned actions and rolled-forward state. This drops the simulator dependency entirely and opens the door to real-robot deployment.
 
 ---
 
@@ -101,15 +95,9 @@ DreamActVLA maintains **92.5% success rate** (only a 1% reduction relative to Sy
 
 ## Future-State-Only Ablation
 
-We additionally evaluate a **future-state-only** condition, which pairs the rolled-forward state $s_{t+N}$ with the current (stale) camera image $I_t$ — replicating the VLASH inference-time strategy on an unmodified policy without temporal offset fine-tuning.
+We also tested a **future-state-only** condition — rolling forward just the state while keeping the current camera image. This is essentially what VLASH does at inference time, but applied to a stock pi0 checkpoint without any offset fine-tuning. Look at the last row in the table above.
 
-| Method | Spatial | Object | Goal | L-10 | Avg SR (%) | Steps | Time (s) | ΔSR |
-|--------|---------|--------|------|------|-----------|-------|----------|-----|
-| Sync | 92.6 | 99.2 | 95.6 | 86.6 | **93.5** | 153.1 | 9.02 | — |
-| Future-State Only | 12.8 | 26.6 | 52.4 | 19.2 | 27.6 | 228.8 | 11.35 | −65.9% |
-| **DreamActVLA (Ours)** | 91.4 | 98.2 | 95.0 | 84.8 | **92.5** | 152.2 | 7.61 | −1.0% |
-
-The future-state-only condition collapses to **27.6% success rate** — a 65.9% drop. This confirms the distribution mismatch: pairing a current image with a future state produces out-of-distribution inputs the unmodified policy cannot handle. DreamActVLA avoids this entirely by aligning both modalities, demonstrating why temporal alignment is critical for accurate asynchronous inference.
+Here the Task Success Rate falls to **27.6%** — a 65.9% drop. The policy simply can't handle the mismatched input. This is exactly the failure mode that motivated DreamActVLA: if you're going to roll forward, roll forward *everything*. Align both modalities and the policy doesn't even notice it's running asynchronously.
 
 <div class="callout callout-warning">
 <strong>Note:</strong> The future-state-only result mirrors the observation pair used by VLASH at inference time, but applied to a standard pi0-LIBERO checkpoint without temporal offset fine-tuning. VLASH's fine-tuning procedure is specifically designed to handle this disjoint input — but at the cost of additional training complexity.
