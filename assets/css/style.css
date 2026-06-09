@@ -111,46 +111,46 @@ body {
 .meta-affiliation::before { content: "· "; }
 .meta-date::before { content: "· "; }
 
-/* ── Table of Contents ── */
-.toc {
-  background: var(--c-surface);
-  border: 1px solid var(--c-border);
+/* ── TL;DR ── */
+.tldr {
+  background: var(--c-accent-light);
+  border: 1px solid #c7d2fe;
   border-radius: 8px;
-  padding: 1rem 1.4rem;
+  padding: 0.8rem 1.2rem;
   margin-bottom: 2.5rem;
 }
 
-.toc summary {
+.tldr summary {
   font-family: var(--font-heading);
-  font-weight: 600;
-  font-size: 0.9rem;
-  color: var(--c-heading);
+  font-weight: 700;
+  font-size: 0.95rem;
+  color: var(--c-accent);
   cursor: pointer;
-  margin-bottom: 0.5rem;
-  text-transform: uppercase;
-  letter-spacing: 0.06em;
+  letter-spacing: 0.02em;
 }
 
-.toc nav ul {
-  list-style: none;
-  padding-left: 0;
+.tldr summary::marker {
+  color: var(--c-accent);
 }
 
-.toc nav ul ul { padding-left: 1.2rem; }
-
-.toc nav li {
-  margin: 0.25rem 0;
+.tldr-content {
+  margin-top: 0.6rem;
+  font-size: 0.92rem;
+  line-height: 1.65;
 }
 
-.toc nav a {
-  font-family: var(--font-heading);
-  font-size: 0.88rem;
-  color: var(--c-text-secondary);
-  text-decoration: none;
-  transition: color 0.15s;
+.tldr-content ul {
+  margin: 0.4rem 0 0 1.4rem;
+  padding: 0;
 }
 
-.toc nav a:hover { color: var(--c-accent); }
+.tldr-content li {
+  margin-bottom: 0.3rem;
+}
+
+.tldr-content strong {
+  color: var(--c-heading);
+}
 
 /* ── Post Body ── */
 .post-body h1, .post-body h2, .post-body h3, .post-body h4 {

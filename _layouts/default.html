@@ -47,12 +47,10 @@
         </div>
       </div>
 
-      {% if page.toc %}
-      <details class="toc" open>
-        <summary>Table of Contents</summary>
-        <nav>
-          {{ content | toc_only }}
-        </nav>
+      {% if page.tldr %}
+      <details class="tldr">
+        <summary>TL;DR</summary>
+        <div class="tldr-content">{{ page.tldr | markdownify }}</div>
       </details>
       {% endif %}
 
@@ -67,6 +65,7 @@
       <p>CS 295 Course Project &middot; UC Berkeley</p>
     </div>
   </footer>
+
 
 </body>
 </html>

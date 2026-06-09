@@ -1,11 +1,16 @@
 ---
 layout: default
 title: "DreamActVLA: Accurate Asynchronous Inference for Vision-Language-Action Models"
-subtitle: "Can asynchronous inference work without any training-time modifications to a VLA?"
+subtitle: "Can asynchronous inference work without any training-time modifications?"
 authors: "Jane E. Doe"
 affiliation: "UC Berkeley, EECS"
 date: 2026-06-08
-toc: true
+toc: false
+tldr: |
+  - VLA policies are slow to run (~120ms per inference call), forcing the robot to idle between action chunks.
+  - Asynchronous inference helps, but prior methods (RTC, VLASH) feed the policy a **stale image + future state** — a mismatched input that degrades performance or requires costly re-training.
+  - **DreamActVLA** rolls *both* the image and state forward to the same future timestep, keeping the input in-distribution with **zero changes to fine-tuning**.
+  - Result on LIBERO: **92.5% success rate** (vs 93.5% sync) with a **1.17× speedup**, while the VLASH-style baseline collapses to 27.6%.
 ---
 
 # Abstract
