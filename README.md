@@ -45,6 +45,31 @@ Place images in `assets/img/` and reference them:
 *Caption text below the image.*
 ```
 
+### Videos
+
+**Local video file** — place your `.mp4` in `assets/img/` (or create an `assets/video/` folder) and use:
+
+```html
+<video width="100%" controls>
+  <source src="assets/img/your-video.mp4" type="video/mp4">
+</video>
+*Caption text below the video.*
+```
+
+**YouTube embed** — grab the video ID from the URL (the part after `v=`) and use:
+
+```html
+<div style="position:relative;padding-bottom:56.25%;height:0;overflow:hidden;">
+  <iframe src="https://www.youtube.com/embed/VIDEO_ID"
+    style="position:absolute;top:0;left:0;width:100%;height:100%;"
+    frameborder="0" allowfullscreen></iframe>
+</div>
+*Caption text below the video.*
+```
+
+**Tip:** Keep local videos under 50MB — GitHub has a 100MB file size limit. For longer clips, upload to YouTube and embed instead.
+
+
 ### Callout Boxes
 
 ```html

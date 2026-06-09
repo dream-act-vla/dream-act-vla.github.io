@@ -16,7 +16,7 @@ tldr: |
 
 # Introduction
 
-Vision-language-action (VLA) policies used for controlling robots are typically deployed with synchronous execution. If you watch demo videos from papers like [pi0](https://arxiv.org/abs/2410.24164), [pi0.5](https://arxiv.org/abs/2504.16054), or [OpenVLA](https://arxiv.org/abs/2406.09246), you'll notice that the robot's motion is a series of movements with short pauses in between. Those pauses are the robot running inference — basically thinking about what to do next. While it's thinking, the robot either idles or blindly executes stale commands while the next plan is being computed. That's a problem, especially if anything in the scene is moving.
+Vision-language-action (VLA) policies used for controlling robots are typically deployed with synchronous execution. If you watch demo videos from papers like <a href="https://arxiv.org/abs/2410.24164">π<sub>0</sub></a>, <a href="https://arxiv.org/abs/2504.16054">π<sub>0.5</sub></a>, or [OpenVLA](https://arxiv.org/abs/2406.09246), you'll notice that the robot's motion is a series of movements with short pauses in between. Those pauses are the robot running inference — basically thinking about what to do next. While it's thinking, the robot either idles or blindly executes stale commands while the next plan is being computed. That's a problem, especially if anything in the scene is moving.
 
 The obvious fix is **asynchronous inference** — start computing the next action chunk while the robot is still executing the current one. No more idle time. But this creates a sneaky problem: by the time inference finishes, the observation that triggered it is stale. The robot moved during that window, so the new actions are based on where the robot *was*, not where it *is*.
 
@@ -26,7 +26,7 @@ This got us thinking: **what if you didn't need to change fine-tuning at all?**
 
 > **Key Insight:** The distribution mismatch in prior approaches arises not from asynchrony itself, but from the *partial* roll-forward. If both the image and state observations are rolled forward to the same future timestep, the policy receives a temporally consistent input that matches its training distribution — eliminating the need for offset-aware fine-tuning.
 
-We tested this idea in three steps. First, we used privileged simulator access in [LIBERO](https://arxiv.org/abs/2306.03310) to render ground-truth future observations and confirmed that an unmodified [pi0](https://arxiv.org/abs/2410.24164) policy works just as well asynchronously — no re-training needed. Then we swapped out the simulator for the [COSMOS world model](https://arxiv.org/abs/2601.16163), which predicts future frames from planned actions, removing the simulator dependency entirely. Finally, we built a dynamic version of LIBERO where objects move in real time, making inference latency directly hurt performance — exactly the kind of setting where async really matters.
+We tested this idea in three steps. First, we used privileged simulator access in [LIBERO](https://arxiv.org/abs/2306.03310) to render ground-truth future observations and confirmed that an unmodified <a href="https://arxiv.org/abs/2410.24164">π<sub>0</sub></a> policy works just as well asynchronously — no re-training needed. Then we swapped out the simulator for the [COSMOS world model](https://arxiv.org/abs/2601.16163), which predicts future frames from planned actions, removing the simulator dependency entirely. Finally, we built a dynamic version of LIBERO where objects move in real time, making inference latency directly hurt performance — exactly the kind of setting where async really matters.
 
 ## Contributions
 
@@ -67,7 +67,7 @@ Of course, the privileged rollout trick only works when you have a simulator to 
 
 ## Experimental Setup
 
-We evaluate on the [LIBERO benchmark (Liu et al., 2023)](https://arxiv.org/abs/2306.03310), which comprises multiple manipulation task suites. Each condition is evaluated over **50 rollouts per task**. All conditions use the [pi0-LIBERO checkpoint (Black et al., 2026)](https://arxiv.org/abs/2410.24164) without any modification to weights or fine-tuning procedure.
+We evaluate on the [LIBERO benchmark (Liu et al., 2023)](https://arxiv.org/abs/2306.03310), which comprises multiple manipulation task suites. Each condition is evaluated over **50 rollouts per task**. All conditions use the <a href="https://arxiv.org/abs/2410.24164">π<sub>0</sub>-LIBERO checkpoint (Black et al., 2026)</a> without any modification to weights or fine-tuning procedure.
 
 Key parameters:
 - **Chunk length:** $N = 15$ actions
@@ -95,12 +95,12 @@ DreamActVLA maintains **92.5% success rate** (only a 1% reduction relative to Sy
 
 ## Future-State-Only Ablation
 
-We also tested a **future-state-only** condition — rolling forward just the state while keeping the current camera image. This is essentially what VLASH does at inference time, but applied to a stock pi0 checkpoint without any offset fine-tuning. Look at the last row in the table above.
+We also tested a **future-state-only** condition — rolling forward just the state while keeping the current camera image. This is essentially what VLASH does at inference time, but applied to a stock π<sub>0</sub> checkpoint without any offset fine-tuning. Look at the last row in the table above.
 
 Here the Task Success Rate falls to **27.6%** — a 65.9% drop. The policy simply can't handle the mismatched input. This is exactly the failure mode that motivated DreamActVLA: if you're going to roll forward, roll forward *everything*. Align both modalities and the policy doesn't even notice it's running asynchronously.
 
 <div class="callout callout-warning">
-<strong>Note:</strong> The future-state-only result mirrors the observation pair used by VLASH at inference time, but applied to a standard pi0-LIBERO checkpoint without temporal offset fine-tuning. VLASH's fine-tuning procedure is specifically designed to handle this disjoint input — but at the cost of additional training complexity.
+<strong>Note:</strong> The future-state-only result mirrors the observation pair used by VLASH at inference time, but applied to a standard π<sub>0</sub>-LIBERO checkpoint without temporal offset fine-tuning. VLASH's fine-tuning procedure is specifically designed to handle this disjoint input — but at the cost of additional training complexity.
 </div>
 
 ---
