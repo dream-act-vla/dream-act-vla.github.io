@@ -2,8 +2,8 @@
 layout: default
 title: "DreamActVLA: Accurate Asynchronous Inference for Vision-Language-Action Models"
 subtitle: "Can asynchronous inference work without any training-time modifications?"
-authors: "Jane E. Doe"
-affiliation: "UC Berkeley, EECS"
+authors: "Chi Zhang, Mboutidem Mkpong, Richard Chen"
+affiliation: "UC Irvine"
 date: 2026-06-08
 toc: false
 tldr: |
