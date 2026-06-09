@@ -251,6 +251,11 @@ body {
 .post-body blockquote p { margin-bottom: 0.4rem; }
 .post-body blockquote p:last-child { margin-bottom: 0; }
 
+.note-quote blockquote {
+  border-left-color: #d97706;
+  background: #fffbeb;
+}
+
 /* ── Images & Figures ── */
 .post-body img {
   max-width: 100%;

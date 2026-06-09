@@ -53,9 +53,7 @@ At the trigger point, rather than using the current (stale) observation, we obta
 
 The next action chunk is then computed as $\pi(o_{t+N})$ and is ready at the chunk boundary $t+N$ when the robot needs it. Because both $I_{t+N}$ and $s_{t+N}$ are drawn from the same simulated future instant, the observation pair is **temporally aligned** — it lies on the same distribution as the training data.
 
-<div class="callout callout-insight">
-<strong>Why this is more accurate:</strong> Training data always pairs contemporaneous images and states. Prior approaches like VLASH break this pairing by only rolling forward the state, producing out-of-distribution inputs. DreamActVLA preserves the original pairing by aligning both modalities to the same future instant — no modified fine-tuning needed.
-</div>
+> **Why this is more accurate:** Training data always pairs contemporaneous images and states. Prior approaches like VLASH break this pairing by only rolling forward the state, producing out-of-distribution inputs. DreamActVLA preserves the original pairing by aligning both modalities to the same future instant — no modified fine-tuning needed.
 
 ## World Model Generalization
 
@@ -99,9 +97,13 @@ We also tested a **future-state-only** condition — rolling forward just the st
 
 Here the Task Success Rate falls to **27.6%** — a 65.9% drop. The policy simply can't handle the mismatched input. This is exactly the failure mode that motivated DreamActVLA: if you're going to roll forward, roll forward *everything*. Align both modalities and the policy doesn't even notice it's running asynchronously.
 
-<div class="callout callout-warning">
-<strong>Note:</strong> The future-state-only result mirrors the observation pair used by VLASH at inference time, but applied to a standard π<sub>0</sub>-LIBERO checkpoint without temporal offset fine-tuning. VLASH's fine-tuning procedure is specifically designed to handle this disjoint input — but at the cost of additional training complexity.
+
+<div class="note-quote">
+
+> **Note:** The future-state-only result mirrors the observation pair used by VLASH at inference time, but applied to a standard π<sub>0</sub>-LIBERO checkpoint without temporal offset fine-tuning. VLASH's fine-tuning procedure is specifically designed to handle this disjoint input — but at the cost of additional training complexity.
+
 </div>
+
 
 ---
 
