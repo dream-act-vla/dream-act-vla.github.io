@@ -245,7 +245,7 @@ body {
   background: var(--c-surface);
   border: 1px solid var(--c-border);
   border-radius: 10px;
-  padding: 1.2rem 1rem 1rem;
+  padding: 1.2rem 1rem 0;
   overflow: hidden;
 }
 
@@ -301,6 +301,14 @@ body {
   color: var(--c-text);
 }
 .av-toggle-btn:hover { background: var(--c-surface); }
+.av-caption {
+  margin: 0.9rem 0 0 0;
+  font-size: 0.82rem;
+  color: var(--c-text-secondary);
+  line-height: 1.55;
+  border-top: 1px solid var(--c-border);
+  padding: 1.2rem 1rem 0;
+}
 .av-leg-item {
   display: flex;
   align-items: center;
@@ -332,6 +340,7 @@ body {
   padding-top: 7px;
   text-align: right;
 }
+.av-label-sync { color: var(--c-text-secondary); }
 .av-label-bad  { color: #dc2626; }
 .av-label-good { color: #16a34a; }
 

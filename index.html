@@ -79,7 +79,7 @@
 
           <!-- SYNC -->
           <div class="av-row">
-            <span class="av-label">Sync</span>
+            <span class="av-label av-label-sync">Sync</span>
             <div class="av-track" id="avTrack0">
               <div class="av-block av-exec"  data-s="0"    data-e="0.38" style="left:0%;   width:38%">Chunk 1</div>
               <div class="av-block av-stall" data-s="0.38" data-e="0.50" style="left:38%;  width:12%">stall</div>
@@ -118,6 +118,9 @@
               <div class="av-playhead" id="avPh2"></div>
             </div>
           </div>
+          <p class="av-caption">
+            All rows span the same wall-clock window. <span style="color:var(--c-text-secondary);font-weight:600">Sync</span> wastes time on stalls; <span style="color:#dc2626;font-weight:600">Async (no WM)</span> eliminates them but acts on stale observations; <span style="color:#16a34a;font-weight:600">DreamActVLA</span> matches async's speed and corrects the observation via the world model before each inference.
+          </p>
         </div>
 
         <script>
