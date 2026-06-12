@@ -91,28 +91,30 @@
             </div>
           </div>
 
-          <!-- ASYNC NO WM -->
+          <!-- ASYNC NO WM — no stalls so same wall-clock time fits 2 full chunks + partial 3rd -->
           <div class="av-row">
             <span class="av-label av-label-bad">Async (no WM)</span>
             <div class="av-track" id="avTrack1">
-              <div class="av-block av-exec"      data-s="0"    data-e="0.50" style="left:0%;  width:50%">Chunk 1</div>
-              <div class="av-block av-exec-warn"  data-s="0.50" data-e="0.88" style="left:50%; width:38%">Chunk 2 — stale obs</div>
-              <div class="av-block av-infer"      data-s="0.32" data-e="0.50" style="left:32%; width:18%">infer</div>
-              <div class="av-block av-infer"      data-s="0.82" data-e="1.00" style="left:82%; width:18%">infer</div>
+              <div class="av-block av-exec"      data-s="0"    data-e="0.38" style="left:0%;  width:38%">Chunk 1</div>
+              <div class="av-block av-exec-warn" data-s="0.38" data-e="0.76" style="left:38%; width:38%">Chunk 2 — stale obs</div>
+              <div class="av-block av-exec-warn" data-s="0.76" data-e="1.00" style="left:76%; width:24%">Chunk 3…</div>
+              <div class="av-block av-infer"     data-s="0.26" data-e="0.38" style="left:26%; width:12%">infer</div>
+              <div class="av-block av-infer"     data-s="0.64" data-e="0.76" style="left:64%; width:12%">infer</div>
               <div class="av-playhead" id="avPh1"></div>
             </div>
           </div>
 
-          <!-- DREAMACTVLA -->
+          <!-- DREAMACTVLA — same speedup as async, but all chunks use fresh obs -->
           <div class="av-row">
             <span class="av-label av-label-good">DreamActVLA</span>
             <div class="av-track" id="avTrack2">
-              <div class="av-block av-exec"      data-s="0"    data-e="0.45" style="left:0%;   width:45%">Chunk 1</div>
-              <div class="av-block av-wm"        data-s="0.45" data-e="0.50" style="left:45%;  width:5%">WM</div>
-              <div class="av-block av-exec-good" data-s="0.50" data-e="0.90" style="left:50%;  width:40%">Chunk 2 ✓ fresh obs</div>
-              <div class="av-block av-wm"        data-s="0.90" data-e="0.95" style="left:90%;  width:5%">WM</div>
-              <div class="av-block av-infer"     data-s="0.28" data-e="0.45" style="left:28%;  width:17%">infer</div>
-              <div class="av-block av-infer"     data-s="0.73" data-e="0.90" style="left:73%;  width:17%">infer</div>
+              <div class="av-block av-exec"      data-s="0"    data-e="0.38" style="left:0%;  width:38%">Chunk 1</div>
+              <div class="av-block av-exec-good" data-s="0.38" data-e="0.76" style="left:38%; width:38%">Chunk 2 ✓ fresh</div>
+              <div class="av-block av-exec-good" data-s="0.76" data-e="1.00" style="left:76%; width:24%">Chunk 3…</div>
+              <div class="av-block av-wm"        data-s="0.26" data-e="0.30" style="left:26%; width:4%">WM</div>
+              <div class="av-block av-infer"     data-s="0.30" data-e="0.38" style="left:30%; width:8%">infer</div>
+              <div class="av-block av-wm"        data-s="0.64" data-e="0.68" style="left:64%; width:4%">WM</div>
+              <div class="av-block av-infer"     data-s="0.68" data-e="0.76" style="left:68%; width:8%">infer</div>
               <div class="av-playhead" id="avPh2"></div>
             </div>
           </div>
