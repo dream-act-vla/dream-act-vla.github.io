@@ -62,24 +62,210 @@
 
         <p>Vision-language-action (VLA) policies used for controlling robots are typically deployed with synchronous execution. If you watch demo videos from papers like <a href="https://arxiv.org/abs/2410.24164">π<sub>0</sub></a>, <a href="https://arxiv.org/abs/2504.16054">π<sub>0.5</sub></a>, or <a href="https://arxiv.org/abs/2406.09246">OpenVLA</a>, you'll notice that the robot's motion is a series of movements with short pauses in between. Those pauses are the robot running inference — basically thinking about what to do next. While it's thinking, the robot either idles or blindly executes stale commands while the next plan is being computed. That's a problem, especially if anything in the scene is moving.</p>
 
-        <p>The obvious fix is <strong>asynchronous inference</strong> — start computing the next action chunk while the robot is still executing the current one. No more idle time. But this creates a sneaky problem: by the time inference finishes, the observation that triggered it is stale. The robot moved during that window, so the new actions are based on where the robot <em>was</em>, not where it <em>is</em>.</p>
+        <p>The obvious fix is to use <strong>asynchronous inference</strong>, where we start computing the next action chunk while the robot is still executing the current one. However, this creates a sneaky problem: by the time inference finishes, the observation that triggered it is stale.</p>
 
-        <p><a href="https://arxiv.org/abs/2512.01031">VLASH</a> tackles this by rolling forward the robot's proprioceptive state to where it <em>will</em> be when the new actions deploy. Sounds reasonable — but it only rolls forward the state, not the image. So the policy gets a current camera frame paired with a future robot state, an input combination it never saw during training. To make this work, VLASH needs a special fine-tuning procedure with temporal offsets baked in. That's doable, but it adds cost and complexity.</p>
+        <div class="async-viz" id="asyncViz">
+          <div class="av-legend">
+            <span class="av-leg-item av-leg-exec">execute</span>
+            <span class="av-leg-item av-leg-stall">stall ⏸</span>
+            <span class="av-leg-item av-leg-infer">infer</span>
+            <span class="av-leg-item av-leg-wm">world model ✨ (WM)</span>
+            <div class="av-speed-control">
+              <span class="av-speed-label">🐇</span>
+              <input type="range" id="avSpeed" min="3" max="20" value="8" step="1">
+              <span class="av-speed-label">🐢</span>
+              <button id="avToggle" class="av-toggle-btn">⏸</button>
+            </div>
+          </div>
 
-        <p>This got us thinking: <strong>what if you didn't need to change fine-tuning at all?</strong></p>
+          <!-- SYNC -->
+          <div class="av-row">
+            <span class="av-label">Sync</span>
+            <div class="av-track" id="avTrack0">
+              <div class="av-block av-exec"  data-s="0"    data-e="0.38" style="left:0%;   width:38%">Chunk 1</div>
+              <div class="av-block av-stall" data-s="0.38" data-e="0.50" style="left:38%;  width:12%">⏸ stall</div>
+              <div class="av-block av-exec"  data-s="0.50" data-e="0.88" style="left:50%;  width:38%">Chunk 2</div>
+              <div class="av-block av-stall" data-s="0.88" data-e="1.00" style="left:88%;  width:12%">⏸ stall</div>
+              <div class="av-block av-infer" data-s="0.38" data-e="0.50" style="left:38%;  width:12%">infer</div>
+              <div class="av-block av-infer" data-s="0.88" data-e="1.00" style="left:88%;  width:12%">infer</div>
+              <div class="av-playhead" id="avPh0"></div>
+            </div>
+          </div>
+
+          <!-- ASYNC NO WM -->
+          <div class="av-row">
+            <span class="av-label av-label-bad">Async (no WM)</span>
+            <div class="av-track" id="avTrack1">
+              <div class="av-block av-exec"      data-s="0"    data-e="0.50" style="left:0%;  width:50%">Chunk 1</div>
+              <div class="av-block av-exec-warn"  data-s="0.50" data-e="0.88" style="left:50%; width:38%">Chunk 2 ⚠️ stale obs</div>
+              <div class="av-block av-infer"      data-s="0.32" data-e="0.50" style="left:32%; width:18%">infer</div>
+              <div class="av-block av-infer"      data-s="0.82" data-e="1.00" style="left:82%; width:18%">infer</div>
+              <div class="av-playhead" id="avPh1"></div>
+            </div>
+          </div>
+
+          <!-- DREAMACTVLA -->
+          <div class="av-row">
+            <span class="av-label av-label-good">DreamActVLA</span>
+            <div class="av-track" id="avTrack2">
+              <div class="av-block av-exec"      data-s="0"    data-e="0.45" style="left:0%;   width:45%">Chunk 1</div>
+              <div class="av-block av-wm"        data-s="0.45" data-e="0.50" style="left:45%;  width:5%">WM</div>
+              <div class="av-block av-exec-good" data-s="0.50" data-e="0.90" style="left:50%;  width:40%">Chunk 2 ✓ fresh obs</div>
+              <div class="av-block av-wm"        data-s="0.90" data-e="0.95" style="left:90%;  width:5%">WM</div>
+              <div class="av-block av-infer"     data-s="0.28" data-e="0.45" style="left:28%;  width:17%">infer</div>
+              <div class="av-block av-infer"     data-s="0.73" data-e="0.90" style="left:73%;  width:17%">infer</div>
+              <div class="av-playhead" id="avPh2"></div>
+            </div>
+          </div>
+        </div>
+
+        <script>
+        (function () {
+          var blocks   = document.querySelectorAll('#asyncViz .av-block');
+          var phs      = document.querySelectorAll('#asyncViz .av-playhead');
+          var slider   = document.getElementById('avSpeed');
+          var toggleBtn= document.getElementById('avToggle');
+
+          var duration = parseFloat(slider.value); // seconds per cycle
+          var ph       = 0;    // 0..1 normalized time
+          var paused   = false;
+          var then     = null;
+          var raf      = null;
+
+          slider.addEventListener('input', function () {
+            duration = parseFloat(this.value);
+          });
+          toggleBtn.addEventListener('click', function () {
+            paused = !paused;
+            toggleBtn.textContent = paused ? '▶' : '⏸';
+            if (!paused) { then = null; raf = requestAnimationFrame(tick); }
+          });
+
+          function reset() {
+            // Instantly hide all blocks (no transition during reset)
+            blocks.forEach(function (b) {
+              b.style.transition = 'none';
+              b.style.opacity    = '0';
+              b.classList.remove('av-pulsing');
+            });
+            phs.forEach(function (p) { p.style.left = '0%'; p.style.opacity = '0'; });
+          }
+
+          function tick(now) {
+            if (paused) return;
+            if (!then) then = now;
+            var dt = (now - then) / 1000;
+            then = now;
+
+            ph += dt / duration;
+
+            if (ph >= 1.05) {
+              ph = 0;
+              reset();
+              raf = requestAnimationFrame(tick);
+              return;
+            }
+
+            var t = Math.min(ph, 1.0);
+
+            // Move all playheads in sync
+            phs.forEach(function (p) {
+              p.style.left    = (t * 100) + '%';
+              p.style.opacity = '1';
+            });
+
+            // Reveal / pulse each block
+            blocks.forEach(function (b) {
+              var s = parseFloat(b.dataset.s);
+              var e = parseFloat(b.dataset.e);
+
+              if (t >= s) {
+                b.style.transition = 'opacity 0.08s ease-out';
+                b.style.opacity    = '1';
+              }
+
+              // Pulse stall and WM only while playhead is within their span
+              var isPulseType = b.classList.contains('av-stall') || b.classList.contains('av-wm');
+              if (isPulseType) {
+                if (t >= s && t <= e) {
+                  b.classList.add('av-pulsing');
+                } else {
+                  b.classList.remove('av-pulsing');
+                }
+              }
+            });
+
+            raf = requestAnimationFrame(tick);
+          }
+
+          reset();
+          raf = requestAnimationFrame(tick);
+        })();
+        </script>
+
+        <p>Existing works have taken different approaches to fix this. <a href="https://arxiv.org/abs/2506.07339">RTC</a> uses an inpainting-style procedure that blends the new action chunk with the old one — great for action continuity, but the policy is still looking at a stale camera frame. <a href="https://arxiv.org/abs/2512.01031">VLASH</a> goes further and rolls the robot's joint state forward to the future timestep, but leaves the image stale. So the policy sees a future robot state paired with a past camera frame, a combination it never saw during training. To make this work, VLASH needs a special fine-tuning procedure with temporal offsets baked in — doable, but it adds cost and complexity. <a href="https://arxiv.org/abs/2604.02408">F2F-AP</a> takes yet another angle and predicts optical flow to paint the future view onto the current frame, but without action conditioning, so it can only estimate where objects drifted, not where the robot's embodiment actually went.</p>
+
+        <p>And then there's <a href="https://arxiv.org/abs/2602.15922">WAM</a>, which said "forget the VLA, the world model <em>is</em> the policy" and trained a 14B video diffusion model to jointly hallucinate future frames and extract actions from them. Impressive — but that 14B model is itself the reason you needed async inference in the first place.</p>
+
+        <table class="comparison-table">
+          <thead>
+            <tr>
+              <th>Method</th>
+              <th>Fixes image staleness</th>
+              <th>Action-conditioned</th>
+              <th>No VLA retraining</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td><a href="https://arxiv.org/abs/2506.07339">RTC</a></td>
+              <td class="no">✗</td>
+              <td class="na">—</td>
+              <td class="yes">✓</td>
+            </tr>
+            <tr>
+              <td><a href="https://arxiv.org/abs/2512.01031">VLASH</a></td>
+              <td class="no">✗</td>
+              <td class="na">—</td>
+              <td class="no">✗</td>
+            </tr>
+            <tr>
+              <td><a href="https://arxiv.org/abs/2604.02408">F2F-AP</a></td>
+              <td class="yes">✓</td>
+              <td class="no">✗</td>
+              <td class="yes">✓</td>
+            </tr>
+            <tr>
+              <td><a href="https://arxiv.org/abs/2602.15922">WAM</a></td>
+              <td class="yes">✓</td>
+              <td class="yes">✓</td>
+              <td class="no">✗ (replaces VLA)</td>
+            </tr>
+            <tr class="ours-row">
+              <td><strong>DreamActVLA (Ours)</strong></td>
+              <td class="yes"><strong>✓</strong></td>
+              <td class="yes"><strong>✓</strong></td>
+              <td class="yes"><strong>✓</strong></td>
+            </tr>
+          </tbody>
+        </table>
+
+        <p>This got us thinking: <strong>what if the answer was simpler?</strong></p>
+
+        <p>The real problem isn't asynchrony — it's the <em>partial</em> roll-forward. Move the state forward but leave the image behind, and you've created a mismatch the policy has never seen. But roll <em>both</em> forward to the same future instant, and the policy gets a perfectly consistent $(I_{t+\Delta}, s_{t+\Delta})$ pair — exactly what it was trained on. No distribution shift. No re-training. The policy doesn't even know it's running asynchronously.</p>
 
         <blockquote>
-          <p><strong>Key Insight:</strong> The distribution mismatch in prior approaches arises not from asynchrony itself, but from the <em>partial</em> roll-forward. If both the image and state observations are rolled forward to the same future timestep, the policy receives a temporally consistent input that matches its training distribution — eliminating the need for offset-aware fine-tuning.</p>
+          <p><strong>Key Insight:</strong> Temporal alignment is the missing ingredient. Roll both the image <em>and</em> the state forward to the same future timestep, and async inference becomes indistinguishable from sync — no fine-tuning changes required.</p>
         </blockquote>
 
-        <p>We tested this idea in three steps. First, we used privileged simulator access in <a href="https://arxiv.org/abs/2306.03310">LIBERO</a> to render ground-truth future observations and confirmed that an unmodified <a href="https://arxiv.org/abs/2410.24164">π<sub>0</sub></a> policy works just as well asynchronously — no re-training needed. Then we swapped out the simulator for the <a href="https://arxiv.org/abs/2601.16163">COSMOS world model</a>, which predicts future frames from planned actions, removing the simulator dependency entirely. Finally, we built a dynamic version of LIBERO where objects move in real time, making inference latency directly hurt performance — exactly the kind of setting where async really matters.</p>
+        <p>We validated this in three steps: first with a privileged simulator peek (MuJoCo snapshot/restore) as a proof of concept, then with a learned latent world model that works without the simulator, and finally on a dynamic LIBERO variant where latency actually hurts. The result: <strong>94.2% average success across all four LIBERO suites</strong> vs. 96.8% sync oracle — a gap of just 2.6 points, while the no-WM async baseline collapses to 67.3%.</p>
 
         <h2 id="contributions">Contributions</h2>
 
         <ul>
-          <li><strong>More accurate asynchronous inference:</strong> By querying a policy with temporally aligned future $[\text{image, state}]$ observations, DreamActVLA achieves asynchronous inference without any adjustment to the fine-tuning process — a strictly more accurate approach than prior methods like RTC and VLASH that rely on temporally disjoint inputs or offset-aware training.</li>
-          <li><strong>World model generalization:</strong> Using a learned world model (COSMOS) to generate future observations removes the simulator dependency and enables real-robot deployment.</li>
-          <li><strong>Dynamic task benchmark:</strong> A new LIBERO benchmark variant with wall-clock-tied object motion where asynchronous methods offer a clear advantage.</li>
+          <li><strong>Temporally aligned async inference:</strong> Rolling both image and state to the same future timestep keeps policy inputs in-distribution — no fine-tuning changes needed, unlike <a href="https://arxiv.org/abs/2512.01031">VLASH</a> and <a href="https://arxiv.org/abs/2506.07339">RTC</a>.</li>
+          <li><strong>Lightweight latent world model:</strong> A U-Net trained in the frozen Cosmos latent space predicts future frames from stale obs + committed actions — action-conditioned unlike <a href="https://arxiv.org/abs/2604.02408">F2F-AP</a>, and orders of magnitude smaller than <a href="https://arxiv.org/abs/2602.15922">WAM</a>.</li>
+          <li><strong>Paper-scale LIBERO evaluation:</strong> 2,000 episodes across all four LIBERO suites showing consistent +26.8pp recovery over the async no-WM baseline.</li>
         </ul>
 
         <hr>
@@ -107,7 +293,28 @@
 
         <h2 id="world-model-generalization">World Model Generalization</h2>
 
-        <p>Of course, the privileged rollout trick only works when you have a simulator to peek into. On a real robot, there's no MuJoCo state to save and restore. So instead, we use the <a href="https://arxiv.org/abs/2601.16163">COSMOS world model</a> to <em>imagine</em> what the future frame will look like, given the planned actions and rolled-forward state. This drops the simulator dependency entirely and opens the door to real-robot deployment.</p>
+        <p>The privileged rollout trick only works in simulation. On a real robot there is no MuJoCo state to save and restore, so we need a learned model that can predict the future frame from the stale observation and the planned actions alone.</p>
+
+        <p>Rather than training a full pixel-space video diffusion model — which would be slow and expensive — we build on the frozen <a href="https://arxiv.org/abs/2601.16163">Cosmos VAE</a> as a compact visual representation and train a lightweight <strong>latent dynamics predictor</strong> on top of it. The key insight is that future-frame prediction is much easier in latent space than in pixel space, and the Cosmos encoder already captures the visual structure we care about.</p>
+
+        <div class="figure">
+          <img src="assets/img/world-model-arch.png" alt="World model architecture: Cosmos encoder feeds z_t into a U-Net conditioned on the action chunk, predicting Δz which is added to z_t and decoded by the frozen Cosmos decoder to produce the predicted future frame.">
+          <p class="caption">Our latent dynamics predictor. The Cosmos encoder and decoder are <strong>frozen</strong> (❄️). Only the action encoder and the U-Net up-blocks are trained (🔥). The U-Net predicts a <em>residual</em> $\Delta z$ rather than the full future latent, making training faster and more stable.</p>
+        </div>
+
+        <p>Concretely, the pipeline has four stages:</p>
+        <ol>
+          <li><strong>Encode:</strong> The frozen Cosmos encoder maps the stale camera frame $I_t \in \mathbb{R}^{H \times W \times 3}$ to a compact latent $z_t \in \mathbb{R}^{16 \times 28 \times 28}$.</li>
+          <li><strong>Condition:</strong> A small trainable action encoder compresses the action chunk $A_t = [a_t, \ldots, a_{t+\Delta-1}]$ into a fixed-size conditioning vector that is broadcast into every U-Net layer via cross-attention.</li>
+          <li><strong>Predict:</strong> A trainable U-Net (frozen down-blocks, trained up-blocks) processes $z_t$ conditioned on the action encoding and outputs a residual $\Delta z$. The predicted future latent is $\hat{z}_{t+\Delta} = z_t + \Delta z$.</li>
+          <li><strong>Decode:</strong> The frozen Cosmos decoder maps $\hat{z}_{t+\Delta}$ back to pixel space, producing $\hat{o}_{t+\Delta}$ — the predicted future observation the VLA will act on.</li>
+        </ol>
+
+        <p>During training we supervise $\hat{z}_{t+\Delta}$ against the ground-truth future latent (obtained by encoding the privileged future frame from the simulator). At inference no simulator access is needed: the model takes only the stale frame and the committed action chunk and produces the corrected observation in one forward pass.</p>
+
+        <blockquote>
+          <p><strong>Why residual prediction?</strong> In manipulation tasks most of the scene — the table, the background, lighting — does not change between $t$ and $t+\Delta$. Predicting only <em>what changes</em> ($\Delta z$) is a much simpler regression target than predicting the full future latent from scratch, and it keeps the model compact enough to run in real time alongside policy inference.</p>
+        </blockquote>
 
         <hr>
 
