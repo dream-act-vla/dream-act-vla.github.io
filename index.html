@@ -44,13 +44,14 @@
       </div>
 
       <details class="tldr">
-        <summary>TL;DR</summary>
+        <summary>What is New Here?</summary>
         <div class="tldr-content">
           <ul>
             <li>VLA policies are slow to run (~120ms per inference call), forcing the robot to idle between action chunks.</li>
-            <li>Asynchronous inference helps, but prior methods (RTC, VLASH) feed the policy a <strong>stale image + future state</strong> — a mismatched input that degrades performance or requires costly re-training.</li>
-            <li><strong>DreamActVLA</strong> rolls <em>both</em> the image and state forward to the same future timestep, keeping the input in-distribution with <strong>zero changes to fine-tuning</strong>.</li>
-            <li>Result on LIBERO: <strong>92.5% success rate</strong> (vs 93.5% sync) with a <strong>1.17× speedup</strong>, while the VLASH-style baseline collapses to 27.6%.</li>
+            <li>Asynchronous inference helps, but prior methods trade off differently: <strong>VLASH</strong> feeds a mismatched stale image + future state and needs offset-aware fine-tuning, while <strong>RTC</strong> feeds an aligned but stale input and corrects the output via inpainting.</li>
+            <li><strong>We implement a system called DreamActVLA</strong> that rolls <em>both</em> the image and state forward to the same future timestep, keeping the input in-distribution with <strong>zero changes to VLA fine-tuning process.</strong>.</li>
+            <li>Result on LIBERO show<strong>92.5% success rate</strong> (vs 93.5% sync) with a <strong>15% speedup</strong> in execution time.</li>
+            <li>Additionally, we develop a set of "dynamic" evaluation tasks in LIBERO and evaluate whether our Asynchronous Inference technique helps improve the policy performance on dynamic tasks.</li>
           </ul>
         </div>
       </details>
