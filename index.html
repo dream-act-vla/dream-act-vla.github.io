@@ -329,7 +329,7 @@
 
         <h3 id="experimental-setup">Experimental Setup</h3>
 
-        <p>We evaluate on the <a href="https://arxiv.org/abs/2306.03310">LIBERO benchmark (Liu et al., 2023)</a>, which comprises multiple manipulation task suites. Each condition is evaluated over <strong>50 rollouts per task</strong>. All conditions use the <a href="https://arxiv.org/abs/2410.24164">π<sub>0</sub>-LIBERO checkpoint (Black et al., 2026)</a> without any modification to weights or fine-tuning procedure.</p>
+        <p>We evaluate on the <a href="https://arxiv.org/abs/2306.03310">LIBERO benchmark</a>, which comprises multiple manipulation task suites. Each condition is evaluated over <strong>50 rollouts per task</strong>. All conditions use the <a href="https://arxiv.org/abs/2410.24164">π<sub>0</sub>-LIBERO checkpoint</a> without any modification or further fine-tuning procedure.</p>
 
         <p>Key parameters:</p>
         <ul>
@@ -339,7 +339,7 @@
           <li><strong>Hardware:</strong> NVIDIA RTX 4070 GPU (measured inference latency $\tau \approx 120\text{ ms}$)</li>
         </ul>
 
-        <p>Critically, the same chunk length $N$ is used for the synchronous baseline, so differences in success rate and completion time reflect the inference strategy alone.</p>
+        <p>The same chunk length $N$ is used across all conditions, so differences in success rate and completion time reflect the inference strategy alone.</p>
 
         <p><strong>Time to success</strong> is computed as:</p>
 
@@ -349,60 +349,10 @@
 
         <h3 id="main-results">Main Results</h3>
 
-        <table>
-          <thead>
-            <tr>
-              <th>Method</th>
-              <th>Spatial</th>
-              <th>Object</th>
-              <th>Goal</th>
-              <th>L-10</th>
-              <th>Avg SR (%)</th>
-              <th>Steps</th>
-              <th>Time (s)</th>
-              <th>ΔSR</th>
-              <th>Speedup</th>
-            </tr>
-          </thead>
-          <tbody>
-            <tr>
-              <td>Sync (Baseline)</td>
-              <td>92.6</td>
-              <td>99.2</td>
-              <td>95.6</td>
-              <td>86.6</td>
-              <td><strong>93.5</strong></td>
-              <td>153.1</td>
-              <td>9.02</td>
-              <td>—</td>
-              <td>—</td>
-            </tr>
-            <tr>
-              <td><strong>DreamActVLA (Ours)</strong></td>
-              <td>91.4</td>
-              <td>98.2</td>
-              <td>95.0</td>
-              <td>84.8</td>
-              <td><strong>92.5</strong></td>
-              <td>152.2</td>
-              <td><strong>7.61</strong></td>
-              <td>−1.0%</td>
-              <td><strong>1.17×</strong></td>
-            </tr>
-            <tr>
-              <td>Future-State Only</td>
-              <td>12.8</td>
-              <td>26.6</td>
-              <td>52.4</td>
-              <td>19.2</td>
-              <td>27.6</td>
-              <td>228.8</td>
-              <td>11.35</td>
-              <td>−65.9%</td>
-              <td>−25.8%</td>
-            </tr>
-          </tbody>
-        </table>
+        <div class="figure">
+          <img src="assets/img/priviledged-obs-results-results.png" alt="Bar charts comparing Sync, DreamActVLA, and Future-State Only on success rate (%) and execution time (s)" style="max-width: 65%;">
+          <p class="caption">Average success rate and mean task completion time for Sync (Baseline), DreamActVLA (Ours), and the Future-State-Only ablation, evaluated across all four LIBERO suites.</p>
+        </div>
 
         <p>DreamActVLA maintains <strong>92.5% success rate</strong> (only a 1% reduction relative to Sync) while reducing mean task completion time to <strong>7.61 s</strong> — a <strong>1.17× speedup</strong>. This speedup stems directly from eliminating blocking inference pauses: inference runs concurrently with the final $K=10$ steps of each chunk and, at a measured latency of $\tau \approx 120\text{ ms}$, completes well within the available $K/f = 500\text{ ms}$ window.</p>
 
