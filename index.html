@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>DreamActVLA: Accurate Asynchronous Inference for Vision-Language-Action Models</title>
+  <title>DreamActVLA: Temporally Aligned Asynchronous Inference for Vision-Language-Action Models</title>
   <meta name="description" content="Accurate Asynchronous Inference for Vision-Language-Action Models">
 
   <!-- KaTeX for math rendering -->
@@ -34,8 +34,8 @@
   <main class="page-content">
     <article class="post">
       <div class="post-header">
-        <h1 class="post-title">DreamActVLA: Accurate Asynchronous Inference for Vision-Language-Action Models</h1>
-        <p class="post-subtitle">Can asynchronous inference work without any training-time modifications?</p>
+        <h1 class="post-title">DreamActVLA: Temporally Aligned Asynchronous Inference for Vision-Language-Action Models</h1>
+        <p class="post-subtitle">Can asynchronous inference work without any modifications to the VLA fine-tuning process?</p>
         <div class="post-meta">
           <span class="meta-authors">Chi Zhang, Mboutidem Mkpong, Richard Chen</span>
           <span class="meta-affiliation">UC Irvine</span>
@@ -48,10 +48,9 @@
         <div class="tldr-content">
           <ul>
             <li>VLA policies are slow to run (~120ms per inference call), forcing the robot to idle between action chunks.</li>
-            <li>Asynchronous inference helps, but prior methods trade off differently: <strong>VLASH</strong> feeds a mismatched stale image + future state and needs offset-aware fine-tuning, while <strong>RTC</strong> feeds an aligned but stale input and corrects the output via inpainting.</li>
-            <li><strong>We implement a system called DreamActVLA</strong> that rolls <em>both</em> the image and state forward to the same future timestep, keeping the input in-distribution with <strong>zero changes to VLA fine-tuning process.</strong>.</li>
-            <li>Result on LIBERO show<strong>92.5% success rate</strong> (vs 93.5% sync) with a <strong>15% speedup</strong> in execution time.</li>
-            <li>Additionally, we develop a set of "dynamic" evaluation tasks in LIBERO and evaluate whether our Asynchronous Inference technique helps improve the policy performance on dynamic tasks.</li>
+            <li>We implement a system called <strong>DreamActVLA</strong> that rolls <em>both</em> the image and state forward to the same future timestep, keeping the input in-distribution with <strong>zero changes </strong>to VLA fine-tuning process.</li>
+            <li>Result on LIBERO shows <strong>92.5% success rate</strong> (vs 93.5% sync) with a <strong>15% speedup</strong> in execution time.</li>
+            <li>Additionally, we develop a set of "dynamic" evaluation tasks in LIBERO and evaluate whether applying Asynchronous Inference technique helps improve the policy performance on dynamic tasks.</li>
           </ul>
         </div>
       </details>
@@ -316,11 +315,19 @@
           <p><strong>Why residual prediction?</strong> In manipulation tasks most of the scene — the table, the background, lighting — does not change between $t$ and $t+\Delta$. Predicting only <em>what changes</em> ($\Delta z$) is a much simpler regression target than predicting the full future latent from scratch, and it keeps the model compact enough to run in real time alongside policy inference.</p>
         </blockquote>
 
+        <h2 id="dynamic-tasks">Dynamic Tasks</h2>
+
+        <p>The privileged and world-model conditions above both use the standard (static) LIBERO suites, where objects sit still until the robot interacts with them — inference latency costs time, but it rarely changes <em>what</em> the right action is. To test whether temporal alignment matters when the world itself keeps moving during inference, we built a <strong>dynamic LIBERO</strong> variant: a set of tasks where target objects move continuously along a fixed trajectory at a constant wall-clock speed, independent of the robot's progress.</p>
+
+        <p>In this setting, every millisecond of inference latency shifts where the target object actually is by the time the next action chunk executes. A policy acting on a stale observation is aiming at where the object <em>was</em>, not where it <em>is</em> — exactly the regime where temporally aligned future observations should matter most.</p>
+
         <hr>
 
         <h1 id="does-our-approach-actually-work">Does Our Approach Actually Work?</h1>
 
-        <h2 id="experimental-setup">Experimental Setup</h2>
+        <h2 id="privileged-future-observations-results">Privileged Future Observations</h2>
+
+        <h3 id="experimental-setup">Experimental Setup</h3>
 
         <p>We evaluate on the <a href="https://arxiv.org/abs/2306.03310">LIBERO benchmark (Liu et al., 2023)</a>, which comprises multiple manipulation task suites. Each condition is evaluated over <strong>50 rollouts per task</strong>. All conditions use the <a href="https://arxiv.org/abs/2410.24164">π<sub>0</sub>-LIBERO checkpoint (Black et al., 2026)</a> without any modification to weights or fine-tuning procedure.</p>
 
@@ -340,7 +347,7 @@
 
         <p>where $T_{\text{block}}$ is the total execution time lost to blocking inference pauses (zero for DreamActVLA when inference completes within the overlap window).</p>
 
-        <h2 id="main-results">Main Results</h2>
+        <h3 id="main-results">Main Results</h3>
 
         <table>
           <thead>
@@ -399,7 +406,7 @@
 
         <p>DreamActVLA maintains <strong>92.5% success rate</strong> (only a 1% reduction relative to Sync) while reducing mean task completion time to <strong>7.61 s</strong> — a <strong>1.17× speedup</strong>. This speedup stems directly from eliminating blocking inference pauses: inference runs concurrently with the final $K=10$ steps of each chunk and, at a measured latency of $\tau \approx 120\text{ ms}$, completes well within the available $K/f = 500\text{ ms}$ window.</p>
 
-        <h2 id="future-state-only-ablation">Future-State-Only Ablation</h2>
+        <h3 id="future-state-only-ablation">Future-State-Only Ablation</h3>
 
         <p>We also tested a <strong>future-state-only</strong> condition — rolling forward just the state while keeping the current camera image. This is essentially what VLASH does at inference time, but applied to a stock π<sub>0</sub> checkpoint without any offset fine-tuning. Look at the last row in the table above.</p>
 
@@ -410,6 +417,14 @@
             <p><strong>Note:</strong> The future-state-only result mirrors the observation pair used by VLASH at inference time, but applied to a standard π<sub>0</sub>-LIBERO checkpoint without temporal offset fine-tuning. VLASH's fine-tuning procedure is specifically designed to handle this disjoint input — but at the cost of additional training complexity.</p>
           </blockquote>
         </div>
+
+        <h2 id="world-model-generalization-results">World Model Generalization</h2>
+
+        <!-- TODO: Add results for the latent world model condition (Cosmos-based prediction vs. privileged simulator rollout) -->
+
+        <h2 id="dynamic-tasks-results">Dynamic Tasks</h2>
+
+        <!-- TODO: Add results for the dynamic LIBERO benchmark -->
 
         <hr>
 
