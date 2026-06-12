@@ -265,9 +265,9 @@
         <h2 id="contributions">Contributions</h2>
 
         <ul>
-          <li><strong>Temporally aligned async inference:</strong> Rolling both image and state to the same future timestep keeps policy inputs in-distribution — no fine-tuning changes needed, unlike <a href="https://arxiv.org/abs/2512.01031">VLASH</a> and <a href="https://arxiv.org/abs/2506.07339">RTC</a>.</li>
-          <li><strong>Lightweight latent world model:</strong> A U-Net trained in the frozen Cosmos latent space predicts future frames from stale obs + committed actions — action-conditioned unlike <a href="https://arxiv.org/abs/2604.02408">F2F-AP</a>, and orders of magnitude smaller than <a href="https://arxiv.org/abs/2602.15922">WAM</a>.</li>
-          <li><strong>Paper-scale LIBERO evaluation:</strong> 2,000 episodes across all four LIBERO suites showing consistent +26.8pp recovery over the async no-WM baseline.</li>
+          <li><strong>More accurate asynchronous inference:</strong> By querying a policy with temporally aligned future $[\text{image, state}]$ observations, DreamActVLA achieves asynchronous inference without any adjustment to the fine-tuning process — a strictly more accurate approach than prior methods like RTC and VLASH that rely on temporally disjoint inputs or offset-aware training.</li>
+          <li><strong>World model generalization:</strong> Using a learned world model (COSMOS) to generate future observations removes the simulator dependency and enables real-robot deployment.</li>
+          <li><strong>Dynamic task benchmark:</strong> A new LIBERO benchmark variant with wall-clock-tied object motion where asynchronous methods offer a clear advantage.</li>
         </ul>
 
         <hr>
