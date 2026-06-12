@@ -1,0 +1,233 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>DreamActVLA: Accurate Asynchronous Inference for Vision-Language-Action Models</title>
+  <meta name="description" content="Accurate Asynchronous Inference for Vision-Language-Action Models">
+
+  <!-- KaTeX for math rendering -->
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/katex@0.16.11/dist/katex.min.css">
+  <script defer src="https://cdn.jsdelivr.net/npm/katex@0.16.11/dist/katex.min.js"></script>
+  <script defer src="https://cdn.jsdelivr.net/npm/katex@0.16.11/dist/contrib/auto-render.min.js"
+    onload="renderMathInElement(document.body, {
+      delimiters: [
+        {left: '$$', right: '$$', display: true},
+        {left: '$', right: '$', display: false}
+      ]
+    });"></script>
+
+  <link rel="stylesheet" href="assets/css/style.css">
+</head>
+<body>
+
+  <header class="site-header">
+    <div class="header-inner">
+      <a href="index.html" class="site-logo">DreamActVLA</a>
+      <nav class="site-nav">
+        <a href="#how-we-implemented-our-approach">Method</a>
+        <a href="#does-our-approach-actually-work">Results</a>
+      </nav>
+    </div>
+  </header>
+
+  <main class="page-content">
+    <article class="post">
+      <div class="post-header">
+        <h1 class="post-title">DreamActVLA: Accurate Asynchronous Inference for Vision-Language-Action Models</h1>
+        <p class="post-subtitle">Can asynchronous inference work without any training-time modifications?</p>
+        <div class="post-meta">
+          <span class="meta-authors">Chi Zhang, Mboutidem Mkpong, Richard Chen</span>
+          <span class="meta-affiliation">UC Irvine</span>
+          <span class="meta-date">June 8, 2026</span>
+        </div>
+      </div>
+
+      <details class="tldr">
+        <summary>TL;DR</summary>
+        <div class="tldr-content">
+          <ul>
+            <li>VLA policies are slow to run (~120ms per inference call), forcing the robot to idle between action chunks.</li>
+            <li>Asynchronous inference helps, but prior methods (RTC, VLASH) feed the policy a <strong>stale image + future state</strong> — a mismatched input that degrades performance or requires costly re-training.</li>
+            <li><strong>DreamActVLA</strong> rolls <em>both</em> the image and state forward to the same future timestep, keeping the input in-distribution with <strong>zero changes to fine-tuning</strong>.</li>
+            <li>Result on LIBERO: <strong>92.5% success rate</strong> (vs 93.5% sync) with a <strong>1.17× speedup</strong>, while the VLASH-style baseline collapses to 27.6%.</li>
+          </ul>
+        </div>
+      </details>
+
+      <div class="post-body">
+
+        <h1 id="introduction">Introduction</h1>
+
+        <p>Vision-language-action (VLA) policies used for controlling robots are typically deployed with synchronous execution. If you watch demo videos from papers like <a href="https://arxiv.org/abs/2410.24164">π<sub>0</sub></a>, <a href="https://arxiv.org/abs/2504.16054">π<sub>0.5</sub></a>, or <a href="https://arxiv.org/abs/2406.09246">OpenVLA</a>, you'll notice that the robot's motion is a series of movements with short pauses in between. Those pauses are the robot running inference — basically thinking about what to do next. While it's thinking, the robot either idles or blindly executes stale commands while the next plan is being computed. That's a problem, especially if anything in the scene is moving.</p>
+
+        <p>The obvious fix is <strong>asynchronous inference</strong> — start computing the next action chunk while the robot is still executing the current one. No more idle time. But this creates a sneaky problem: by the time inference finishes, the observation that triggered it is stale. The robot moved during that window, so the new actions are based on where the robot <em>was</em>, not where it <em>is</em>.</p>
+
+        <p><a href="https://arxiv.org/abs/2512.01031">VLASH</a> tackles this by rolling forward the robot's proprioceptive state to where it <em>will</em> be when the new actions deploy. Sounds reasonable — but it only rolls forward the state, not the image. So the policy gets a current camera frame paired with a future robot state, an input combination it never saw during training. To make this work, VLASH needs a special fine-tuning procedure with temporal offsets baked in. That's doable, but it adds cost and complexity.</p>
+
+        <p>This got us thinking: <strong>what if you didn't need to change fine-tuning at all?</strong></p>
+
+        <blockquote>
+          <p><strong>Key Insight:</strong> The distribution mismatch in prior approaches arises not from asynchrony itself, but from the <em>partial</em> roll-forward. If both the image and state observations are rolled forward to the same future timestep, the policy receives a temporally consistent input that matches its training distribution — eliminating the need for offset-aware fine-tuning.</p>
+        </blockquote>
+
+        <p>We tested this idea in three steps. First, we used privileged simulator access in <a href="https://arxiv.org/abs/2306.03310">LIBERO</a> to render ground-truth future observations and confirmed that an unmodified <a href="https://arxiv.org/abs/2410.24164">π<sub>0</sub></a> policy works just as well asynchronously — no re-training needed. Then we swapped out the simulator for the <a href="https://arxiv.org/abs/2601.16163">COSMOS world model</a>, which predicts future frames from planned actions, removing the simulator dependency entirely. Finally, we built a dynamic version of LIBERO where objects move in real time, making inference latency directly hurt performance — exactly the kind of setting where async really matters.</p>
+
+        <h2 id="contributions">Contributions</h2>
+
+        <ul>
+          <li><strong>More accurate asynchronous inference:</strong> By querying a policy with temporally aligned future $[\text{image, state}]$ observations, DreamActVLA achieves asynchronous inference without any adjustment to the fine-tuning process — a strictly more accurate approach than prior methods like RTC and VLASH that rely on temporally disjoint inputs or offset-aware training.</li>
+          <li><strong>World model generalization:</strong> Using a learned world model (COSMOS) to generate future observations removes the simulator dependency and enables real-robot deployment.</li>
+          <li><strong>Dynamic task benchmark:</strong> A new LIBERO benchmark variant with wall-clock-tied object motion where asynchronous methods offer a clear advantage.</li>
+        </ul>
+
+        <hr>
+
+        <h1 id="how-we-implemented-our-approach">How we Implemented our approach</h1>
+
+        <h2 id="privileged-future-observations">Privileged Future Observations</h2>
+
+        <p>Let $o_t = (I_t, s_t)$ denote the full observation at timestep $t$, where $I_t \in \mathbb{R}^{H \times W \times 3}$ is the rendered camera frame and $s_t \in \mathbb{R}^{8}$ is the proprioceptive state vector (end-effector position, axis-angle orientation, and gripper aperture).</p>
+
+        <p>Given a current action chunk $a = [a_t, \ldots, a_{t+N-1}]$ of length $N$, we trigger asynchronous inference $K$ steps before the chunk ends, at step $t + N - K$.</p>
+
+        <p>At the trigger point, rather than using the current (stale) observation, we obtain a future observation $o_{t+N}$ by performing a brief rollout within the simulator:</p>
+
+        <div class="figure">
+          <img src="assets/img/privileged-future-obs.png" alt="Privileged future observations pipeline: Save state, Simulate forward, Capture future, Restore and resume">
+          <p class="caption">The four-step privileged rollout procedure. Both the image and state are captured from the same simulated future instant, ensuring temporal alignment.</p>
+        </div>
+
+        <p>The next action chunk is then computed as $\pi(o_{t+N})$ and is ready at the chunk boundary $t+N$ when the robot needs it. Because both $I_{t+N}$ and $s_{t+N}$ are drawn from the same simulated future instant, the observation pair is <strong>temporally aligned</strong> — it lies on the same distribution as the training data.</p>
+
+        <blockquote>
+          <p><strong>Why this is more accurate:</strong> Training data always pairs contemporaneous images and states. Prior approaches like VLASH break this pairing by only rolling forward the state, producing out-of-distribution inputs. DreamActVLA preserves the original pairing by aligning both modalities to the same future instant — no modified fine-tuning needed.</p>
+        </blockquote>
+
+        <h2 id="world-model-generalization">World Model Generalization</h2>
+
+        <p>Of course, the privileged rollout trick only works when you have a simulator to peek into. On a real robot, there's no MuJoCo state to save and restore. So instead, we use the <a href="https://arxiv.org/abs/2601.16163">COSMOS world model</a> to <em>imagine</em> what the future frame will look like, given the planned actions and rolled-forward state. This drops the simulator dependency entirely and opens the door to real-robot deployment.</p>
+
+        <hr>
+
+        <h1 id="does-our-approach-actually-work">Does Our Approach Actually Work?</h1>
+
+        <h2 id="experimental-setup">Experimental Setup</h2>
+
+        <p>We evaluate on the <a href="https://arxiv.org/abs/2306.03310">LIBERO benchmark (Liu et al., 2023)</a>, which comprises multiple manipulation task suites. Each condition is evaluated over <strong>50 rollouts per task</strong>. All conditions use the <a href="https://arxiv.org/abs/2410.24164">π<sub>0</sub>-LIBERO checkpoint (Black et al., 2026)</a> without any modification to weights or fine-tuning procedure.</p>
+
+        <p>Key parameters:</p>
+        <ul>
+          <li><strong>Chunk length:</strong> $N = 15$ actions</li>
+          <li><strong>Overlap:</strong> $K = 10$ steps for the asynchronous condition</li>
+          <li><strong>Inference window:</strong> $K/f = 0.5\text{s}$ at the LIBERO control frequency of $f = 20\text{ Hz}$</li>
+          <li><strong>Hardware:</strong> NVIDIA RTX 4070 GPU (measured inference latency $\tau \approx 120\text{ ms}$)</li>
+        </ul>
+
+        <p>Critically, the same chunk length $N$ is used for the synchronous baseline, so differences in success rate and completion time reflect the inference strategy alone.</p>
+
+        <p><strong>Time to success</strong> is computed as:</p>
+
+        <p>$$T = N_{\text{steps}} / f + T_{\text{block}}$$</p>
+
+        <p>where $T_{\text{block}}$ is the total execution time lost to blocking inference pauses (zero for DreamActVLA when inference completes within the overlap window).</p>
+
+        <h2 id="main-results">Main Results</h2>
+
+        <table>
+          <thead>
+            <tr>
+              <th>Method</th>
+              <th>Spatial</th>
+              <th>Object</th>
+              <th>Goal</th>
+              <th>L-10</th>
+              <th>Avg SR (%)</th>
+              <th>Steps</th>
+              <th>Time (s)</th>
+              <th>ΔSR</th>
+              <th>Speedup</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td>Sync (Baseline)</td>
+              <td>92.6</td>
+              <td>99.2</td>
+              <td>95.6</td>
+              <td>86.6</td>
+              <td><strong>93.5</strong></td>
+              <td>153.1</td>
+              <td>9.02</td>
+              <td>—</td>
+              <td>—</td>
+            </tr>
+            <tr>
+              <td><strong>DreamActVLA (Ours)</strong></td>
+              <td>91.4</td>
+              <td>98.2</td>
+              <td>95.0</td>
+              <td>84.8</td>
+              <td><strong>92.5</strong></td>
+              <td>152.2</td>
+              <td><strong>7.61</strong></td>
+              <td>−1.0%</td>
+              <td><strong>1.17×</strong></td>
+            </tr>
+            <tr>
+              <td>Future-State Only</td>
+              <td>12.8</td>
+              <td>26.6</td>
+              <td>52.4</td>
+              <td>19.2</td>
+              <td>27.6</td>
+              <td>228.8</td>
+              <td>11.35</td>
+              <td>−65.9%</td>
+              <td>−25.8%</td>
+            </tr>
+          </tbody>
+        </table>
+
+        <p>DreamActVLA maintains <strong>92.5% success rate</strong> (only a 1% reduction relative to Sync) while reducing mean task completion time to <strong>7.61 s</strong> — a <strong>1.17× speedup</strong>. This speedup stems directly from eliminating blocking inference pauses: inference runs concurrently with the final $K=10$ steps of each chunk and, at a measured latency of $\tau \approx 120\text{ ms}$, completes well within the available $K/f = 500\text{ ms}$ window.</p>
+
+        <h2 id="future-state-only-ablation">Future-State-Only Ablation</h2>
+
+        <p>We also tested a <strong>future-state-only</strong> condition — rolling forward just the state while keeping the current camera image. This is essentially what VLASH does at inference time, but applied to a stock π<sub>0</sub> checkpoint without any offset fine-tuning. Look at the last row in the table above.</p>
+
+        <p>Here the Task Success Rate falls to <strong>27.6%</strong> — a 65.9% drop. The policy simply can't handle the mismatched input. This is exactly the failure mode that motivated DreamActVLA: if you're going to roll forward, roll forward <em>everything</em>. Align both modalities and the policy doesn't even notice it's running asynchronously.</p>
+
+        <div class="note-quote">
+          <blockquote>
+            <p><strong>Note:</strong> The future-state-only result mirrors the observation pair used by VLASH at inference time, but applied to a standard π<sub>0</sub>-LIBERO checkpoint without temporal offset fine-tuning. VLASH's fine-tuning procedure is specifically designed to handle this disjoint input — but at the cost of additional training complexity.</p>
+          </blockquote>
+        </div>
+
+        <hr>
+
+        <h1 id="discussion">Discussion</h1>
+
+        <h2 id="limitations">Limitations</h2>
+
+        <!-- TODO: Add discussion of limitations -->
+
+        <hr>
+
+        <h1 id="conclusion">Conclusion</h1>
+
+        <p>We have shown that <strong>temporally aligned future observations</strong> enable more accurate asynchronous inference for VLA policies without any modification to the fine-tuning procedure. By rolling forward both the image and proprioceptive state to the same future timestep, DreamActVLA keeps policy inputs in-distribution and achieves a 1.17× speedup with negligible impact on task success — a strictly more accurate approach than existing methods like RTC and VLASH.</p>
+
+        <p>Our approach opens two directions for future work: (1) deploying DreamActVLA on physical robots using learned world models such as COSMOS, and (2) extending the dynamic task benchmark to evaluate robustness under varying object velocities and more complex scene dynamics.</p>
+
+      </div>
+    </article>
+  </main>
+
+  <footer class="site-footer">
+    <div class="footer-inner">
+      <p>CS 295 Course Project &middot; UC Irvine</p>
+    </div>
+  </footer>
+
+</body>
+</html>

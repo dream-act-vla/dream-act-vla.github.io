@@ -2,23 +2,23 @@
 
 A blog-style project report page for **DreamActVLA: Accurate Asynchronous Inference for Vision-Language-Action Models**.
 
-Built with [Jekyll](https://jekyllrb.com/) and hosted on [GitHub Pages](https://pages.github.com/)
+A single static HTML page — open `index.html` directly in a browser (no build step required), or host it on [GitHub Pages](https://pages.github.com/).
 
 ## How to Edit Content
 
-All report content lives in **`index.md`**. It's standard Markdown with a few extras:
+All report content lives in **`index.html`**. It's plain HTML with a few conventions:
 
 ### Text & Headings
 
-```markdown
-# Section Title
-## Subsection
-Regular paragraph text with **bold** and *italic*.
+```html
+<h1 id="section-title">Section Title</h1>
+<h2 id="subsection">Subsection</h2>
+<p>Regular paragraph text with <strong>bold</strong> and <em>italic</em>.</p>
 ```
 
 ### Math (KaTeX)
 
-```markdown
+```html
 Inline math: $E = mc^2$
 
 Display math:
@@ -27,22 +27,31 @@ $$
 $$
 ```
 
+KaTeX renders these client-side — no build step needed.
+
 ### Tables
 
-```markdown
-| Method       | SR (%) | Time (s) |
-|--------------|--------|----------|
-| Sync         | 93.5   | 9.02     |
-| DreamActVLA  | 92.5   | 7.61     |
+```html
+<table>
+  <thead>
+    <tr><th>Method</th><th>SR (%)</th><th>Time (s)</th></tr>
+  </thead>
+  <tbody>
+    <tr><td>Sync</td><td>93.5</td><td>9.02</td></tr>
+    <tr><td>DreamActVLA</td><td>92.5</td><td>7.61</td></tr>
+  </tbody>
+</table>
 ```
 
 ### Images
 
 Place images in `assets/img/` and reference them:
 
-```markdown
-![Description of figure](assets/img/your-figure.png)
-*Caption text below the image.*
+```html
+<div class="figure">
+  <img src="assets/img/your-figure.png" alt="Description of figure">
+  <p class="caption">Caption text below the image.</p>
+</div>
 ```
 
 ### Videos
@@ -53,7 +62,7 @@ Place images in `assets/img/` and reference them:
 <video width="100%" controls>
   <source src="assets/img/your-video.mp4" type="video/mp4">
 </video>
-*Caption text below the video.*
+<p class="caption">Caption text below the video.</p>
 ```
 
 **YouTube embed** — grab the video ID from the URL (the part after `v=`) and use:
@@ -64,21 +73,22 @@ Place images in `assets/img/` and reference them:
     style="position:absolute;top:0;left:0;width:100%;height:100%;"
     frameborder="0" allowfullscreen></iframe>
 </div>
-*Caption text below the video.*
+<p class="caption">Caption text below the video.</p>
 ```
 
 **Tip:** Keep local videos under 50MB — GitHub has a 100MB file size limit. For longer clips, upload to YouTube and embed instead.
 
-
 ### Callout Boxes
 
 ```html
-<div class="callout callout-insight">
-<strong>Key point:</strong> Your insight here.
-</div>
+<blockquote>
+  <p><strong>Key Insight:</strong> Your insight here — renders blue.</p>
+</blockquote>
 
-<div class="callout callout-warning">
-<strong>Note:</strong> Your caveat here.
+<div class="note-quote">
+  <blockquote>
+    <p><strong>Note:</strong> Your caveat here — renders warm yellow.</p>
+  </blockquote>
 </div>
 ```
 
@@ -86,52 +96,43 @@ Place images in `assets/img/` and reference them:
 
 Use HTML comments that won't render on the page:
 
-```markdown
+```html
 <!-- TODO(Alice): Add results figure for dynamic benchmark -->
 <!-- TODO: Write limitations section -->
 ```
 
 ---
 
-## Run Locally (Optional)
+## Preview Locally
 
-If you want to preview changes before pushing:
+Just open `index.html` in your browser — double-click it, or run:
 
 ```bash
-# Install Jekyll (one-time)
-gem install bundler jekyll
-
-# Serve locally
-bundle install
-bundle exec jekyll serve
+open index.html
 ```
 
-Then open `http://localhost:4000` in your browser. Changes auto-reload.
+No server, build step, or dependencies required. Changes to `index.html` or `assets/css/style.css` are visible on a simple page refresh.
 
 ---
 
 ## File Structure
 
 ```
-dream-act-vla.github.io/
-├── _config.yml          # Site settings (title, URL, etc.)
-├── _layouts/
-│   └── default.html     # Page template (header, footer, KaTeX)
+dream-act-vla/
+├── index.html           # ← MAIN CONTENT — edit this file
 ├── assets/
 │   ├── css/
 │   │   └── style.css    # All styling
-│   └── img/             # Figures and images
-├── index.md             # ← MAIN CONTENT — edit this file
-├── Gemfile              # Ruby dependencies
-└── README.md            # This file
+│   └── img/              # Figures and images
+├── .nojekyll             # Tells GitHub Pages to serve files as-is
+└── README.md             # This file
 ```
 
 ---
 
 ## Tips for Collaborators
 
-- **Edit `index.md`** for content changes — it's just Markdown.
-- **Add images** to `assets/img/` and reference them in the Markdown.
-- **Preview on GitHub** — GitHub renders Markdown previews, though math won't show until the site builds.
+- **Edit `index.html`** for content changes — it's plain HTML.
+- **Add images** to `assets/img/` and reference them with relative paths.
 - **Avoid merge conflicts** — coordinate who's editing which section. Use `<!-- TODO(YourName): ... -->` to claim sections.
-- **Push to `main`** — GitHub Pages rebuilds automatically on every push (~1-2 min).
+- **Push to `main`** — GitHub Pages serves the updated `index.html` automatically (~1 min).
