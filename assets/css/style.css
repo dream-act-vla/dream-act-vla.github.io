@@ -364,9 +364,10 @@ body {
   align-items: center;
   justify-content: center;
   white-space: nowrap;
-  overflow: hidden;
+  overflow: visible;
   padding: 0 4px;
   opacity: 0;
+  clip-path: inset(0 100% 0 0);
 }
 
 /* Execution: top layer — all exec variants share top/height */

@@ -66,9 +66,9 @@
         <div class="async-viz" id="asyncViz">
           <div class="av-legend">
             <span class="av-leg-item av-leg-exec">execute</span>
-            <span class="av-leg-item av-leg-stall">stall ⏸</span>
+            <span class="av-leg-item av-leg-stall">stall</span>
             <span class="av-leg-item av-leg-infer">infer</span>
-            <span class="av-leg-item av-leg-wm">world model ✨ (WM)</span>
+            <span class="av-leg-item av-leg-wm">world model (WM)</span>
             <div class="av-speed-control">
               <span class="av-speed-label">🐇</span>
               <input type="range" id="avSpeed" min="3" max="20" value="8" step="1">
@@ -82,9 +82,9 @@
             <span class="av-label">Sync</span>
             <div class="av-track" id="avTrack0">
               <div class="av-block av-exec"  data-s="0"    data-e="0.38" style="left:0%;   width:38%">Chunk 1</div>
-              <div class="av-block av-stall" data-s="0.38" data-e="0.50" style="left:38%;  width:12%">⏸ stall</div>
+              <div class="av-block av-stall" data-s="0.38" data-e="0.50" style="left:38%;  width:12%">stall</div>
               <div class="av-block av-exec"  data-s="0.50" data-e="0.88" style="left:50%;  width:38%">Chunk 2</div>
-              <div class="av-block av-stall" data-s="0.88" data-e="1.00" style="left:88%;  width:12%">⏸ stall</div>
+              <div class="av-block av-stall" data-s="0.88" data-e="1.00" style="left:88%;  width:12%">stall</div>
               <div class="av-block av-infer" data-s="0.38" data-e="0.50" style="left:38%;  width:12%">infer</div>
               <div class="av-block av-infer" data-s="0.88" data-e="1.00" style="left:88%;  width:12%">infer</div>
               <div class="av-playhead" id="avPh0"></div>
@@ -96,7 +96,7 @@
             <span class="av-label av-label-bad">Async (no WM)</span>
             <div class="av-track" id="avTrack1">
               <div class="av-block av-exec"      data-s="0"    data-e="0.50" style="left:0%;  width:50%">Chunk 1</div>
-              <div class="av-block av-exec-warn"  data-s="0.50" data-e="0.88" style="left:50%; width:38%">Chunk 2 ⚠️ stale obs</div>
+              <div class="av-block av-exec-warn"  data-s="0.50" data-e="0.88" style="left:50%; width:38%">Chunk 2 — stale obs</div>
               <div class="av-block av-infer"      data-s="0.32" data-e="0.50" style="left:32%; width:18%">infer</div>
               <div class="av-block av-infer"      data-s="0.82" data-e="1.00" style="left:82%; width:18%">infer</div>
               <div class="av-playhead" id="avPh1"></div>
@@ -125,27 +125,24 @@
           var slider   = document.getElementById('avSpeed');
           var toggleBtn= document.getElementById('avToggle');
 
-          var duration = parseFloat(slider.value); // seconds per cycle
-          var ph       = 0;    // 0..1 normalized time
+          var duration = parseFloat(slider.value);
+          var ph       = 0;
           var paused   = false;
           var then     = null;
-          var raf      = null;
 
-          slider.addEventListener('input', function () {
-            duration = parseFloat(this.value);
-          });
+          slider.addEventListener('input', function () { duration = parseFloat(this.value); });
           toggleBtn.addEventListener('click', function () {
             paused = !paused;
             toggleBtn.textContent = paused ? '▶' : '⏸';
-            if (!paused) { then = null; raf = requestAnimationFrame(tick); }
+            if (!paused) { then = null; requestAnimationFrame(tick); }
           });
 
           function reset() {
-            // Instantly hide all blocks (no transition during reset)
             blocks.forEach(function (b) {
-              b.style.transition = 'none';
-              b.style.opacity    = '0';
+              b.style.opacity   = '0';
+              b.style.clipPath  = 'inset(0 100% 0 0)';
               b.classList.remove('av-pulsing');
+              b._stopPending = false;
             });
             phs.forEach(function (p) { p.style.left = '0%'; p.style.opacity = '0'; });
           }
@@ -155,56 +152,60 @@
             if (!then) then = now;
             var dt = (now - then) / 1000;
             then = now;
-
             ph += dt / duration;
 
-            if (ph >= 1.05) {
-              ph = 0;
-              reset();
-              raf = requestAnimationFrame(tick);
-              return;
-            }
+            if (ph >= 1.08) { ph = 0; reset(); requestAnimationFrame(tick); return; }
 
             var t = Math.min(ph, 1.0);
 
-            // Move all playheads in sync
             phs.forEach(function (p) {
               p.style.left    = (t * 100) + '%';
-              p.style.opacity = '1';
+              p.style.opacity = ph > 0 ? '1' : '0';
             });
 
-            // Reveal / pulse each block
             blocks.forEach(function (b) {
-              var s = parseFloat(b.dataset.s);
-              var e = parseFloat(b.dataset.e);
+              var s  = parseFloat(b.dataset.s);
+              var e  = parseFloat(b.dataset.e);
+              var isPulse = b.classList.contains('av-stall') || b.classList.contains('av-wm');
 
-              if (t >= s) {
-                b.style.transition = 'opacity 0.08s ease-out';
-                b.style.opacity    = '1';
-              }
-
-              // Pulse stall and WM only while playhead is within their span
-              var isPulseType = b.classList.contains('av-stall') || b.classList.contains('av-wm');
-              if (isPulseType) {
-                if (t >= s && t <= e) {
-                  b.classList.add('av-pulsing');
-                } else {
-                  b.classList.remove('av-pulsing');
+              if (t < s) {
+                // not yet reached — hidden
+                b.style.opacity  = '0';
+                b.style.clipPath = 'inset(0 100% 0 0)';
+              } else if (t <= e) {
+                // playhead is crossing this block — wipe in proportionally
+                var pct    = (t - s) / (e - s);          // 0→1 as playhead crosses
+                var remain = ((1 - pct) * 100).toFixed(1);
+                b.style.opacity  = '1';
+                b.style.clipPath = 'inset(0 ' + remain + '% 0 0)';
+                if (isPulse) b.classList.add('av-pulsing');
+              } else {
+                // fully passed — fully visible
+                b.style.opacity  = '1';
+                b.style.clipPath = 'inset(0 0% 0 0)';
+                // wait for current blink to finish before removing pulse
+                if (isPulse && b.classList.contains('av-pulsing') && !b._stopPending) {
+                  b._stopPending = true;
+                  b.addEventListener('animationiteration', function onIter() {
+                    b.classList.remove('av-pulsing');
+                    b._stopPending = false;
+                    b.removeEventListener('animationiteration', onIter);
+                  }, { once: true });
                 }
               }
             });
 
-            raf = requestAnimationFrame(tick);
+            requestAnimationFrame(tick);
           }
 
           reset();
-          raf = requestAnimationFrame(tick);
+          requestAnimationFrame(tick);
         })();
         </script>
 
-        <p>Existing works have taken different approaches to fix this. <a href="https://arxiv.org/abs/2506.07339">RTC</a> uses an inpainting-style procedure that blends the new action chunk with the old one — great for action continuity, but the policy is still looking at a stale camera frame. <a href="https://arxiv.org/abs/2512.01031">VLASH</a> goes further and rolls the robot's joint state forward to the future timestep, but leaves the image stale. So the policy sees a future robot state paired with a past camera frame, a combination it never saw during training. To make this work, VLASH needs a special fine-tuning procedure with temporal offsets baked in — doable, but it adds cost and complexity. <a href="https://arxiv.org/abs/2604.02408">F2F-AP</a> takes yet another angle and predicts optical flow to paint the future view onto the current frame, but without action conditioning, so it can only estimate where objects drifted, not where the robot's embodiment actually went.</p>
+        <p>Existing works have taken different approaches to fix this. <a href="https://arxiv.org/abs/2506.07339">RTC</a> uses an inpainting-style procedure that blends the new action chunk with the old one — great for action continuity, but the policy is still looking at a stale camera frame. <a href="https://arxiv.org/abs/2512.01031">VLASH</a> goes further and rolls the robot's joint state forward to the future timestep, but leaves the image stale. So the policy sees a future robot state paired with a past camera frame, a combination it never saw during training. To make this work, VLASH needs a special fine-tuning procedure with temporal offsets baked in — doable, but it adds cost and complexity. <a href="https://arxiv.org/abs/2604.02408">F2F-AP</a> takes yet another angle and predicts optical flow, overlaying the flow vectors onto the current frame as a visual hint of future state — but the policy must be trained from scratch to consume these flow-augmented inputs, and without action conditioning the flow can only estimate where objects drifted, not where the robot's embodiment actually went.</p>
 
-        <p>And then there's <a href="https://arxiv.org/abs/2602.15922">WAM</a>, which said "forget the VLA, the world model <em>is</em> the policy" and trained a 14B video diffusion model to jointly hallucinate future frames and extract actions from them. Impressive — but that 14B model is itself the reason you needed async inference in the first place.</p>
+        <p>And then there's <a href="https://arxiv.org/abs/2602.15922">WAM</a>, which said "forget the VLA, the world model <em>is</em> the policy" and fine-tuned a 14B video diffusion model (Wan2.1-I2V) to jointly denoise future frames and actions simultaneously through separate decoders. Impressive — but that 14B model is itself the reason you needed async inference in the first place.</p>
 
         <table class="comparison-table">
           <thead>
@@ -232,7 +233,7 @@
               <td><a href="https://arxiv.org/abs/2604.02408">F2F-AP</a></td>
               <td class="yes">✓</td>
               <td class="no">✗</td>
-              <td class="yes">✓</td>
+              <td class="no">✗</td>
             </tr>
             <tr>
               <td><a href="https://arxiv.org/abs/2602.15922">WAM</a></td>
