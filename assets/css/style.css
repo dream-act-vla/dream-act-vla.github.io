@@ -449,6 +449,18 @@ body {
   50%       { background: #eab308; border-color: #ca8a04; transform: scaleY(1.15); color: #fff;    }
 }
 
+/* ── Video column labels ── */
+.video-col-labels {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  text-align: center;
+  font-family: var(--font-heading);
+  font-size: 0.78rem;
+  font-weight: 600;
+  color: var(--c-text-secondary);
+  margin-bottom: 0.3rem;
+}
+
 /* ── Comparison table ── */
 .comparison-table thead th { text-align: center; }
 .comparison-table thead th:first-child { text-align: left; }

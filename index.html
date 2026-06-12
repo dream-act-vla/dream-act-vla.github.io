@@ -18,6 +18,7 @@
     });"></script>
 
   <link rel="stylesheet" href="assets/css/style.css">
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
 </head>
 <body>
 
@@ -266,7 +267,7 @@
 
         <ul>
           <li><strong>More accurate asynchronous inference:</strong> By querying a policy with temporally aligned future $[\text{image, state}]$ observations, DreamActVLA achieves asynchronous inference without any adjustment to the fine-tuning process — a strictly more accurate approach than prior methods like RTC and VLASH that rely on temporally disjoint inputs or offset-aware training.</li>
-          <li><strong>World model generalization:</strong> Using a learned world model (COSMOS) to generate future observations removes the simulator dependency and enables real-robot deployment.</li>
+          <li><strong>Action-conditioned latent world model:</strong> We train a U-Net in the latent space of a frozen Cosmos VAE to predict future visual observations from stale frames and committed actions, removing the simulator dependency of the privileged approach without modifying the VLA policy.</li>
           <li><strong>Dynamic task benchmark:</strong> A new LIBERO benchmark variant with wall-clock-tied object motion where asynchronous methods offer a clear advantage.</li>
         </ul>
 
@@ -391,7 +392,94 @@
 
         <h2 id="world-model-generalization-results">World Model Generalization</h2>
 
-        <!-- TODO: Add results for the latent world model condition (Cosmos-based prediction vs. privileged simulator rollout) -->
+        <p>The privileged results confirm that temporal alignment is sufficient for near-oracle performance. But can our latent world model replicate this at scale — replacing the simulator peek with a learned prediction across all LIBERO suites.</p>
+
+        <p>Before examining task success rates, we verify that the world model produces visually plausible predictions. The video below shows one episode step-by-step: the stale delayed observation the policy would normally see, the WM-predicted frame it actually receives, and the ground-truth current frame from the simulator — for both the primary and wrist cameras.</p>
+
+        <div class="figure">
+          <div class="video-col-labels">
+            <span>Delayed (stale)</span>
+            <span>WM Prediction</span>
+            <span>Ground Truth</span>
+          </div>
+          <video src="assets/videos/wm_dream_gt.mp4" autoplay muted loop playsinline style="width:100%;border-radius:6px;"></video>
+          <p class="caption">The WM prediction (centre) closely matches the ground-truth current frame (right) despite being generated purely from the stale frame and the committed action sequence.</p>
+        </div>
+
+        <div class="figure">
+          <video src="assets/videos/sync_nowm_wm.mp4" autoplay muted loop playsinline style="width:100%;border-radius:6px;"></video>
+          <p class="caption">Side-by-side task execution: <strong>Sync oracle</strong> (left) succeeds; <strong>Async no-WM</strong> (centre) fails due to stale observations; <strong>Async + DreamActVLA WM</strong> (right) succeeds by correcting the visual input before each inference step.</p>
+        </div>
+
+        <p>We evaluate the latent world model on all four LIBERO suites using <a href="https://arxiv.org/abs/2504.16054">π<sub>0.5</sub>-libero</a> via the OpenPI server — <strong>50 rollouts per task, 10 tasks per suite, 500 episodes per suite</strong>. The async conditions use a fixed inference delay of <strong>4 steps</strong>. Three conditions are compared: the official synchronous π<sub>0.5</sub> baseline, async inference with no world model (stale observations), and async inference with DreamActVLA's latent WM providing corrected observations.</p>
+
+        <div class="figure">
+          <canvas id="wmResultsChart" style="max-height:360px"></canvas>
+          <p class="caption">Success rate across all four LIBERO suites. The WM recovers <strong>+26.8pp on average</strong> over the no-WM async baseline, closing the gap to within 2.7pp of synchronous oracle performance. On LIBERO-Object the WM slightly exceeds the sync oracle.</p>
+        </div>
+
+        <div class="note-quote">
+          <blockquote>
+            <p><strong>Note on the async baseline:</strong> VLASH did not report naive async numbers on LIBERO, noting that static environments make async methods behave similarly. Our evaluation quantifies this directly: running the unmodified π<sub>0.5</sub>-libero checkpoint at delay=4 drops average success by 29.5pp — a meaningful degradation that motivated this work.</p>
+          </blockquote>
+        </div>
+
+        <script>
+        (function() {
+          var ctx = document.getElementById('wmResultsChart').getContext('2d');
+          new Chart(ctx, {
+            type: 'bar',
+            data: {
+              labels: ['Spatial', 'Object', 'Goal', 'LIBERO-10', 'Average'],
+              datasets: [
+                {
+                  label: 'Sync π0.5 (oracle)',
+                  data: [98.8, 98.2, 98.0, 92.4, 96.85],
+                  backgroundColor: 'rgba(88,96,105,0.75)',
+                  borderColor: '#586069',
+                  borderWidth: 1,
+                  borderRadius: 4,
+                },
+                {
+                  label: 'Async π0.5 (no WM)',
+                  data: [55.4, 69.4, 73.6, 71.0, 67.35],
+                  backgroundColor: 'rgba(220,38,38,0.75)',
+                  borderColor: '#dc2626',
+                  borderWidth: 1,
+                  borderRadius: 4,
+                },
+                {
+                  label: 'Async π0.5 + DreamActVLA WM',
+                  data: [97.4, 98.6, 94.0, 86.6, 94.15],
+                  backgroundColor: 'rgba(22,163,74,0.75)',
+                  borderColor: '#16a34a',
+                  borderWidth: 1,
+                  borderRadius: 4,
+                }
+              ]
+            },
+            options: {
+              responsive: true,
+              plugins: {
+                legend: { position: 'top', labels: { font: { family: 'Inter, sans-serif', size: 12 } } },
+                tooltip: { callbacks: { label: function(ctx) { return ctx.dataset.label + ': ' + ctx.parsed.y + '%'; } } },
+                datalabels: false
+              },
+              scales: {
+                y: {
+                  min: 0, max: 100,
+                  ticks: { callback: function(v) { return v + '%'; }, font: { family: 'Inter, sans-serif' } },
+                  grid: { color: 'rgba(0,0,0,0.06)' }
+                },
+                x: {
+                  ticks: { font: { family: 'Inter, sans-serif', weight: '600' } },
+                  grid: { display: false }
+                }
+              }
+            }
+          });
+        })();
+        </script>
 
         <h2 id="dynamic-tasks-results">Dynamic Tasks</h2>
 
