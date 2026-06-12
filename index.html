@@ -49,9 +49,9 @@
         <div class="tldr-content">
           <ul>
             <li>VLA policies are slow to run (~120ms per inference call), forcing the robot to idle between action chunks.</li>
-            <li>We implement a system called <strong>DreamActVLA</strong> that rolls <em>both</em> the image and state forward to the same future timestep, keeping the input in-distribution with <strong>zero changes </strong>to VLA fine-tuning process.</li>
-            <li>Result on LIBERO shows <strong>92.5% success rate</strong> (vs 93.5% sync) with a <strong>15% speedup</strong> in execution time.</li>
-            <li>Additionally, we develop a set of "dynamic" evaluation tasks in LIBERO and evaluate whether applying Asynchronous Inference technique helps improve the policy performance on dynamic tasks.</li>
+            <li>We implement <strong>DreamActVLA</strong>, a latent world model that predicts the current visual observation from the stale frame and committed actions, keeping the VLA input in-distribution with <strong>zero changes</strong> to the fine-tuning process.</li>
+            <li>Results on all four LIBERO suites (2,000 episodes): <strong>94.2% average success rate</strong> (vs 96.8% sync oracle), recovering <strong>+26.8pp</strong> over the async no-WM baseline.</li>
+            <li>Additionally, we develop a set of "dynamic" evaluation tasks in LIBERO and evaluate whether our approach helps when goal objects move during inference.</li>
           </ul>
         </div>
       </details>
@@ -277,6 +277,12 @@
 
         <h2 id="privileged-future-observations">Privileged Future Observations</h2>
 
+        <div class="note-quote">
+          <blockquote>
+            <p><strong>Note:</strong> Before investing in world model training and large-scale evaluation, we first use privileged simulator access to validate that temporally aligned observations actually help — if they don't, there is no point building a model to produce them.</p>
+          </blockquote>
+        </div>
+
         <p>Let $o_t = (I_t, s_t)$ denote the full observation at timestep $t$, where $I_t \in \mathbb{R}^{H \times W \times 3}$ is the rendered camera frame and $s_t \in \mathbb{R}^{8}$ is the proprioceptive state vector (end-effector position, axis-angle orientation, and gripper aperture).</p>
 
         <p>Given a current action chunk $a = [a_t, \ldots, a_{t+N-1}]$ of length $N$, we trigger asynchronous inference $K$ steps before the chunk ends, at step $t + N - K$.</p>
@@ -291,7 +297,7 @@
         <p>The next action chunk is then computed as $\pi(o_{t+N})$ and is ready at the chunk boundary $t+N$ when the robot needs it. Because both $I_{t+N}$ and $s_{t+N}$ are drawn from the same simulated future instant, the observation pair is <strong>temporally aligned</strong> — it lies on the same distribution as the training data.</p>
 
         <blockquote>
-          <p><strong>Why this is more accurate:</strong> Training data always pairs contemporaneous images and states. Prior approaches like VLASH break this pairing by only rolling forward the state, producing out-of-distribution inputs. DreamActVLA preserves the original pairing by aligning both modalities to the same future instant — no modified fine-tuning needed.</p>
+          <p><strong>Why this is more accurate:</strong> Training data always pairs contemporaneous images and states. Prior approaches like VLASH break this pairing by only rolling forward the state, producing out-of-distribution inputs. Temporal alignment preserves the original pairing by capturing both modalities at the same future instant — no modified fine-tuning needed.</p>
         </blockquote>
 
         <h2 id="world-model-generalization">World Model Generalization</h2>
@@ -313,7 +319,7 @@
           <li><strong>Decode:</strong> The frozen Cosmos decoder maps $\hat{z}_{t+\Delta}$ back to pixel space, producing $\hat{o}_{t+\Delta}$ — the predicted future observation the VLA will act on.</li>
         </ol>
 
-        <p>During training we supervise $\hat{z}_{t+\Delta}$ against the ground-truth future latent (obtained by encoding the privileged future frame from the simulator). At inference no simulator access is needed: the model takes only the stale frame and the committed action chunk and produces the corrected observation in one forward pass.</p>
+        <p>During training we supervise $\hat{z}_{t+\Delta}$ against the ground-truth future latent obtained by encoding the corresponding future frame from the LIBERO expert demonstration dataset. At inference no dataset or simulator access is needed: the model takes only the stale frame and the committed action chunk and produces the corrected observation in one forward pass.</p>
 
         <blockquote>
           <p><strong>Why residual prediction?</strong> In manipulation tasks most of the scene — the table, the background, lighting — does not change between $t$ and $t+\Delta$. Predicting only <em>what changes</em> ($\Delta z$) is a much simpler regression target than predicting the full future latent from scratch, and it keeps the model compact enough to run in real time alongside policy inference.</p>
@@ -353,36 +359,78 @@
 
         <h1 id="does-our-approach-actually-work">Does Our Approach Actually Work?</h1>
 
-        <h2 id="privileged-future-observations-results">Privileged Future Observations</h2>
+        <h2 id="privileged-future-observations-results">Does Alignment Help? Yes.</h2>
 
-        <h3 id="experimental-setup">Experimental Setup</h3>
+        <p>We evaluate on the <a href="https://arxiv.org/abs/2306.03310">LIBERO benchmark</a> using the <a href="https://arxiv.org/abs/2410.24164">π<sub>0</sub>-LIBERO checkpoint</a> without any modification or fine-tuning. Each of the below <strong>three conditions</strong> is evaluated over <strong>50 rollouts per task</strong>:</p>
 
-        <p>We evaluate on the <a href="https://arxiv.org/abs/2306.03310">LIBERO benchmark</a>, which comprises multiple manipulation task suites. Each condition is evaluated over <strong>50 rollouts per task</strong>. All conditions use the <a href="https://arxiv.org/abs/2410.24164">π<sub>0</sub>-LIBERO checkpoint</a> without any modification or further fine-tuning procedure.</p>
-
-        <p>Key parameters:</p>
         <ul>
-          <li><strong>Chunk length:</strong> $N = 15$ actions</li>
-          <li><strong>Overlap:</strong> $K = 10$ steps for the asynchronous condition</li>
-          <li><strong>Inference window:</strong> $K/f = 0.5\text{s}$ at the LIBERO control frequency of $f = 20\text{ Hz}$</li>
-          <li><strong>Hardware:</strong> NVIDIA RTX 4070 GPU (measured inference latency $\tau \approx 120\text{ ms}$)</li>
+          <li><strong>Sync</strong>: standard synchronous baseline.</li>
+          <li><strong>Future Obs (Privileged)</strong>: async with simulator oracle providing the aligned future observation.</li>
+          <li><strong>Future-State Only</strong>: async with only the state rolled forward — the VLASH-style mismatch, serving as the failure baseline.</li>
         </ul>
 
-        <p>The same chunk length $N$ is used across all conditions, so differences in success rate and completion time reflect the inference strategy alone.</p>
-
-        <p><strong>Time to success</strong> is computed as:</p>
-
-        <p>$$T = N_{\text{steps}} / f + T_{\text{block}}$$</p>
-
-        <p>where $T_{\text{block}}$ is the total execution time lost to blocking inference pauses (zero for DreamActVLA when inference completes within the overlap window).</p>
-
-        <h3 id="results">Results</h3>
+        <p>Each policy call produces an action chunk of length $N = 15$, and the asynchronous conditions trigger the next inference $K = 10$ steps before the current chunk ends. All other parameters are identical across conditions, so any difference in outcome reflects the inference strategy alone.</p>
 
         <div class="figure">
-          <img src="assets/img/priviledged-obs-results-results.png" alt="Bar charts comparing Sync, DreamActVLA, and Future-State Only on success rate (%) and execution time (s)" style="max-width: 65%;">
-          <p class="caption">Average success rate and mean task completion time for Sync (Baseline), DreamActVLA (Ours), and the Future-State-Only ablation, evaluated across all four LIBERO suites.</p>
+          <canvas id="privResultsChart" style="max-height:320px"></canvas>
+          <p class="caption">Future Obs (Privileged) nearly matches sync on success rate (92.5% vs 93.5%) with a 1.17× speedup in task completion time. Future-State Only collapses to 27.6% without aligned visual input.</p>
         </div>
+        <script>
+        (function() {
+          new Chart(document.getElementById('privResultsChart').getContext('2d'), {
+            type: 'bar',
+            data: {
+              labels: ['Success Rate (%)', 'Task Completion Time (s)'],
+              datasets: [
+                {
+                  label: 'Sync',
+                  data: [93.5, 9.02],
+                  backgroundColor: 'rgba(88,96,105,0.75)',
+                  borderColor: '#586069',
+                  borderWidth: 1,
+                  borderRadius: 4,
+                },
+                {
+                  label: 'Future Obs (Privileged)',
+                  data: [92.5, 7.61],
+                  backgroundColor: 'rgba(37,99,235,0.75)',
+                  borderColor: '#2563eb',
+                  borderWidth: 1,
+                  borderRadius: 4,
+                },
+                {
+                  label: 'Future-State Only',
+                  data: [27.6, 11.35],
+                  backgroundColor: 'rgba(220,38,38,0.75)',
+                  borderColor: '#dc2626',
+                  borderWidth: 1,
+                  borderRadius: 4,
+                }
+              ]
+            },
+            options: {
+              responsive: true,
+              plugins: {
+                legend: { position: 'top', labels: { font: { family: 'Inter, sans-serif', size: 12 } } },
+                tooltip: { callbacks: { label: function(c) { return c.dataset.label + ': ' + c.parsed.y; } } }
+              },
+              scales: {
+                y: {
+                  min: 0,
+                  ticks: { font: { family: 'Inter, sans-serif' } },
+                  grid: { color: 'rgba(0,0,0,0.06)' }
+                },
+                x: {
+                  ticks: { font: { family: 'Inter, sans-serif', weight: '600' } },
+                  grid: { display: false }
+                }
+              }
+            }
+          });
+        })();
+        </script>
 
-        <p>DreamActVLA maintains <strong>92.5% success rate</strong> (only a 1% reduction relative to Sync) while reducing mean task completion time to <strong>7.61 s</strong> — a <strong>1.17× speedup</strong>. This speedup stems directly from eliminating blocking inference pauses: inference runs concurrently with the final $K=10$ steps of each chunk and, at a measured latency of $\tau \approx 120\text{ ms}$, completes well within the available $K/f = 500\text{ ms}$ window.</p>
+        <p>The privileged condition maintains <strong>92.5% success rate</strong> (only a 1% reduction relative to Sync) while reducing mean task completion time to <strong>7.61 s</strong> — a <strong>1.17× speedup</strong>. This confirms that temporal alignment alone is sufficient for near-oracle performance. Because the privileged access gives us a perfect future observation, these results establish the upper-bound oracle that a learned world model should aim to match.</p>
 
         <h3 id="future-state-only-ablation">Future-State-Only Ablation</h3>
 
@@ -390,7 +438,7 @@
 
         <p>Here the Task Success Rate falls to <strong>27.6%</strong>. The policy simply can't handle the mismatched input. This is exactly the failure mode that motivated DreamActVLA: if you're going to roll forward, roll forward <em>everything</em>. Align both modalities and the policy doesn't even notice it's running asynchronously.</p>
 
-        <h2 id="world-model-generalization-results">World Model Generalization</h2>
+        <h2 id="world-model-generalization-results">DreamActVLA: Learning to Align in the Real World</h2>
 
         <p>The privileged results confirm that temporal alignment is sufficient for near-oracle performance. But can our latent world model replicate this at scale — replacing the simulator peek with a learned prediction across all LIBERO suites.</p>
 
