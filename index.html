@@ -364,7 +364,7 @@
 
         <h3 id="future-state-only-ablation">Future-State-Only Ablation</h3>
 
-        <p>We also tested a <strong>future-state-only</strong> condition — rolling forward just the state while keeping the current camera image. This is essentially what VLASH does at inference time, but applied to a stock π<sub>0</sub> checkpoint without any offset fine-tuning. Look at the last row in the table above.</p>
+        <p>We also tested a <strong>future-state-only</strong> condition — rolling forward just the state while keeping the current camera image. This is essentially what VLASH does at inference time, but applied to a stock π<sub>0</sub> checkpoint without any offset fine-tuning.</p>
 
         <p>Here the Task Success Rate falls to <strong>27.6%</strong> — a 65.9% drop. The policy simply can't handle the mismatched input. This is exactly the failure mode that motivated DreamActVLA: if you're going to roll forward, roll forward <em>everything</em>. Align both modalities and the policy doesn't even notice it's running asynchronously.</p>
 
