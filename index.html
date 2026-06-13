@@ -372,58 +372,58 @@
         <p>Each policy call produces an action chunk of length $N = 15$, and the asynchronous conditions trigger the next inference $K = 10$ steps before the current chunk ends. All other parameters are identical across conditions, so any difference in outcome reflects the inference strategy alone.</p>
 
         <div class="figure">
-          <canvas id="privResultsChart" style="max-height:320px"></canvas>
+          <div class="dual-chart-wrap">
+            <div class="dual-chart-col">
+              <div class="dual-chart-title">Success Rate (%)</div>
+              <div class="dual-chart-item"><canvas id="privSRChart"></canvas></div>
+            </div>
+            <div class="dual-chart-col">
+              <div class="dual-chart-title">Task Completion Time (s) ↓</div>
+              <div class="dual-chart-item"><canvas id="privTimeChart"></canvas></div>
+            </div>
+          </div>
           <p class="caption">Future Obs (Privileged) nearly matches sync on success rate (92.5% vs 93.5%) with a 1.17× speedup in task completion time. Future-State Only collapses to 27.6% without aligned visual input.</p>
         </div>
         <script>
         (function() {
-          new Chart(document.getElementById('privResultsChart').getContext('2d'), {
+          var labels = ['Sync', 'Privileged', 'Future-State'];
+          var bg = ['rgba(88,96,105,0.75)', 'rgba(37,99,235,0.75)', 'rgba(220,38,38,0.75)'];
+          var bd = ['#586069', '#2563eb', '#dc2626'];
+          var xScale = {
+            ticks: { font: { family: 'Inter, sans-serif', weight: '600', size: 11 } },
+            grid: { display: false }
+          };
+
+          new Chart(document.getElementById('privSRChart').getContext('2d'), {
             type: 'bar',
-            data: {
-              labels: ['Success Rate (%)', 'Task Completion Time (s)'],
-              datasets: [
-                {
-                  label: 'Sync',
-                  data: [93.5, 9.02],
-                  backgroundColor: 'rgba(88,96,105,0.75)',
-                  borderColor: '#586069',
-                  borderWidth: 1,
-                  borderRadius: 4,
-                },
-                {
-                  label: 'Future Obs (Privileged)',
-                  data: [92.5, 7.61],
-                  backgroundColor: 'rgba(37,99,235,0.75)',
-                  borderColor: '#2563eb',
-                  borderWidth: 1,
-                  borderRadius: 4,
-                },
-                {
-                  label: 'Future-State Only',
-                  data: [27.6, 11.35],
-                  backgroundColor: 'rgba(220,38,38,0.75)',
-                  borderColor: '#dc2626',
-                  borderWidth: 1,
-                  borderRadius: 4,
-                }
-              ]
-            },
+            data: { labels: labels, datasets: [{ data: [93.5, 92.5, 27.6], backgroundColor: bg, borderColor: bd, borderWidth: 1, borderRadius: 4, categoryPercentage: 0.6, barPercentage: 0.75 }] },
             options: {
               responsive: true,
+              maintainAspectRatio: false,
               plugins: {
-                legend: { position: 'top', labels: { font: { family: 'Inter, sans-serif', size: 12 } } },
-                tooltip: { callbacks: { label: function(c) { return c.dataset.label + ': ' + c.parsed.y; } } }
+                legend: { display: false },
+                tooltip: { callbacks: { label: function(c){ return c.parsed.y + '%'; } } }
               },
               scales: {
-                y: {
-                  min: 0,
-                  ticks: { font: { family: 'Inter, sans-serif' } },
-                  grid: { color: 'rgba(0,0,0,0.06)' }
-                },
-                x: {
-                  ticks: { font: { family: 'Inter, sans-serif', weight: '600' } },
-                  grid: { display: false }
-                }
+                y: { min: 0, max: 100, ticks: { callback: function(v){ return v + '%'; }, font: { family: 'Inter, sans-serif' } }, grid: { color: 'rgba(0,0,0,0.06)' } },
+                x: xScale
+              }
+            }
+          });
+
+          new Chart(document.getElementById('privTimeChart').getContext('2d'), {
+            type: 'bar',
+            data: { labels: labels, datasets: [{ data: [9.02, 7.61, 11.35], backgroundColor: bg, borderColor: bd, borderWidth: 1, borderRadius: 4, categoryPercentage: 0.6, barPercentage: 0.75 }] },
+            options: {
+              responsive: true,
+              maintainAspectRatio: false,
+              plugins: {
+                legend: { display: false },
+                tooltip: { callbacks: { label: function(c){ return c.parsed.y + 's'; } } }
+              },
+              scales: {
+                y: { min: 0, ticks: { callback: function(v){ return v + 's'; }, font: { family: 'Inter, sans-serif' } }, grid: { color: 'rgba(0,0,0,0.06)' } },
+                x: xScale
               }
             }
           });

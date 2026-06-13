@@ -449,67 +449,30 @@ body {
   50%       { background: #eab308; border-color: #ca8a04; transform: scaleY(1.15); color: #fff;    }
 }
 
-/* ── POC bar charts ── */
-.poc-charts {
+/* ── Dual side-by-side charts ── */
+.dual-chart-wrap {
   display: grid;
   grid-template-columns: 1fr 1fr;
   gap: 1.5rem;
 }
-.poc-chart {
-  display: flex;
-  flex-direction: column;
-}
-.poc-title {
+.dual-chart-title {
   font-family: var(--font-heading);
-  font-size: 0.82rem;
-  font-weight: 700;
-  color: var(--c-heading);
-  margin-bottom: 0.6rem;
-  text-align: center;
-}
-.poc-bars {
-  display: flex;
-  align-items: flex-end;
-  justify-content: center;
-  gap: 1rem;
-  height: 220px;
-  border-bottom: 2px solid var(--c-border);
-  padding-bottom: 0;
-}
-.poc-group {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  flex: 1;
-  height: 100%;
-  justify-content: flex-end;
-}
-.poc-val {
-  font-family: var(--font-heading);
-  font-size: 0.75rem;
-  font-weight: 700;
-  color: var(--c-heading);
-  margin-bottom: 4px;
-}
-.poc-bar {
-  width: 100%;
-  border-radius: 4px 4px 0 0;
-  min-height: 4px;
-}
-.poc-label {
-  font-family: var(--font-heading);
-  font-size: 0.72rem;
+  font-size: 0.85rem;
   font-weight: 600;
-  color: var(--c-text-secondary);
-  margin-top: 6px;
+  color: var(--c-heading);
   text-align: center;
+  margin-bottom: 0.5rem;
 }
-.poc-axis-label {
-  font-family: var(--font-heading);
-  font-size: 0.68rem;
-  color: var(--c-text-secondary);
-  text-align: right;
-  margin-top: 4px;
+.dual-chart-item {
+  position: relative;
+  height: 280px;
+}
+.dual-chart-item canvas {
+  width: 100% !important;
+  height: 100% !important;
+}
+@media (max-width: 640px) {
+  .dual-chart-wrap { grid-template-columns: 1fr; }
 }
 
 /* ── Video column labels ── */
