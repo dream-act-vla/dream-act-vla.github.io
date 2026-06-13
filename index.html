@@ -300,7 +300,7 @@
           <p><strong>Why this is more accurate:</strong> Training data always pairs contemporaneous images and states. Prior approaches like VLASH break this pairing by only rolling forward the state, producing out-of-distribution inputs. Temporal alignment preserves the original pairing by capturing both modalities at the same future instant — no modified fine-tuning needed.</p>
         </blockquote>
 
-        <h2 id="world-model-generalization">World Model Generalization</h2>
+        <h2 id="world-model-generalization">DreamActVLA: The Latent World Model</h2>
 
         <p>The privileged rollout trick only works in simulation. On a real robot there is no MuJoCo state to save and restore, so we need a learned model that can predict the future frame from the stale observation and the planned actions alone.</p>
 
@@ -554,7 +554,7 @@
         <p>The implementation code for this project is split across the following repositories:</p>
         <ul>
           <li><strong>Privileged Future Observations:</strong> <a href="https://github.com/themboutidem/future-obs-pi0">github.com/themboutidem/future-obs-pi0</a></li>
-          <li><strong>World Model Generalization:</strong> <a href="https://github.com/Somdit/DreamActVLA">github.com/Somdit/DreamActVLA</a></li>
+          <li><strong>DreamActVLA:</strong> <a href="https://github.com/Somdit/DreamActVLA">github.com/Somdit/DreamActVLA</a></li>
           <li><strong>Dynamic Tasks:</strong> <!-- TODO: add repo link --></li>
         </ul>
 
