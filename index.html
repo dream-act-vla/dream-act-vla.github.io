@@ -327,7 +327,7 @@
 
         <h2 id="shifting-the-prediction-interval">Shifting the Prediction Interval</h2>
 
-        <p>The cleanest way to see what DreamActVLA does is in terms of intervals. Under inference delay $\delta$, a chunk is <em>planned</em> for the prediction interval $[t, t+K)$ but <em>executed</em> over the shifted interval $[t+\delta, t+\delta+K)$ — every action lands $\delta$ steps late, applied to a world that has moved on. That misalignment is naive async, and it is what collapses in our results below.</p>
+        <p>The cleanest way to see what DreamActVLA does is in terms of intervals. Under inference delay $\delta$, a chunk is <em>planned</em> for the prediction interval $[t, t+K)$ but <em>executed</em> over the shifted interval $[t+\delta, t+\delta+K)$ — every action lands $\delta$ steps late, applied to a world that has moved on. That misalignment is what we call <strong>async without WM</strong>, and it is what collapses in our results below.</p>
 
         <blockquote>
           <p><strong>Our fix: shift the prediction interval itself.</strong> By synthesizing the future observation $\hat{o}_{t+\delta}$ before querying the policy, the chunk is planned for $[t+\delta, t+\delta+K)$ — exactly the interval it will execute over. Perfect alignment, all $K$ actions intact, and the policy itself never changes. This is VLASH's insight — condition on the execution-time state — completed: VLASH rolls forward only the proprioceptive state and must fine-tune the policy to tolerate the resulting state-image mismatch; we roll forward the image too, so a <em>frozen</em> policy accepts the input as-is.</p>
@@ -523,18 +523,18 @@
 
         <h2 id="dynamic-tasks-results">Dynamic Tasks</h2>
 
-        <p>These experiments use the π<sub>0.5</sub>-LIBERO checkpoint (10-action chunks, 20 Hz control) with our learned latent world model, against a zero-latency <strong>oracle</strong> and <strong>naive async</strong> (the full chunk executes $\delta$ steps late — the standard asynchronous deployment, e.g. SmolVLA's). Each cell is 100 episodes, so treat differences under ~5 points as noise.</p>
+        <p>These experiments use the π<sub>0.5</sub>-LIBERO checkpoint (10-action chunks, 20 Hz control) with our learned latent world model, against a zero-latency <strong>oracle</strong> and <strong>async without WM</strong> (proprioceptive state is current — the roll-forward is free — but the images are $\delta$ steps stale and the full chunk executes late). Each cell is 100 episodes, so treat differences under ~5 points as noise.</p>
 
         <h3 id="drift-sweep">How fast can the world move?</h3>
 
         <div class="figure">
-          <img src="assets/img/fig2_drift_sweep_blog.png" alt="Success rate vs object drift rate for oracle, naive async, and world model on libero_object at delay 4">
+          <img src="assets/img/fig2_drift_sweep_blog.png" alt="Success rate vs object drift rate for oracle, async without WM, and world model on libero_object at delay 4">
           <p class="caption">Success rate vs. drift rate (LIBERO-Object, $\delta = 4$ ≈ 200 ms — which happens to be this policy's <em>measured</em> inference latency on our hardware). Top axis: object speed in cm/s.</p>
         </div>
 
         <table class="comparison-table">
           <thead>
-            <tr><th>Drift (mm/step)</th><th>Oracle</th><th>Naive async</th><th>DreamActVLA (WM)</th></tr>
+            <tr><th>Drift (mm/step)</th><th>Oracle</th><th>Async (no WM)</th><th>DreamActVLA (WM)</th></tr>
           </thead>
           <tbody>
             <tr><td>0 (static)</td><td>90</td><td>67</td><td>85</td></tr>
@@ -544,7 +544,7 @@
           </tbody>
         </table>
 
-        <p>Two readings. First, scene motion is expensive for <em>everyone</em> — even the zero-latency oracle falls from 90% to 46%, because objects keep moving during open-loop chunk execution no matter how fresh the observation was. Second, the world model recovers most of the asynchronous gap at mild-to-moderate drift: at 0.4 mm/step it sits at 69% against the oracle's 71%, with naive async at 40% — asynchronous execution at essentially synchronous accuracy, with a frozen policy.</p>
+        <p>Two readings. First, scene motion is expensive for <em>everyone</em> — even the zero-latency oracle falls from 90% to 46%, because objects keep moving during open-loop chunk execution no matter how fresh the observation was. Second, the world model recovers most of the asynchronous gap at mild-to-moderate drift: at 0.4 mm/step it sits at 69% against the oracle's 71%, with the no-WM condition at 40% — asynchronous execution at essentially synchronous accuracy, with a frozen policy.</p>
 
         <blockquote>
           <p><strong>An honest limitation.</strong> At the most aggressive drift (1.0 mm/step) the world model's gains shrink (22%). The reason is structural: our predictor is conditioned on a <em>single</em> stale frame plus the robot's actions — and one frame carries no velocity information, so the model renders drifting objects where the stale frame had them. It corrects the robot's self-motion exactly, but independent scene motion is invisible to any single-frame predictor. The fix is equally structural — condition on two frames so velocity is observable — and is the clear next step (see Limitations).</p>
@@ -553,7 +553,7 @@
         <h3 id="latency-sweep">How much latency can it absorb?</h3>
 
         <div class="figure">
-          <img src="assets/img/fig3_latency_sweep_blog.png" alt="Success rate vs inference latency, 100 to 400 ms, showing naive async collapsing while the world model sustains performance">
+          <img src="assets/img/fig3_latency_sweep_blog.png" alt="Success rate vs inference latency, 100 to 400 ms, showing async without WM collapsing while the world model sustains performance">
           <p class="caption">Success rate vs. inference latency (LIBERO-Object, 0.4 mm/step drift). Shaded band: zero-latency oracle (71–76%).</p>
         </div>
 
@@ -562,12 +562,12 @@
             <tr><th>Latency</th><th>100 ms</th><th>200 ms</th><th>300 ms</th><th>400 ms</th></tr>
           </thead>
           <tbody>
-            <tr><td>Naive async</td><td>58</td><td>40</td><td>16</td><td><strong>5</strong></td></tr>
+            <tr><td>Async (no WM)</td><td>58</td><td>40</td><td>16</td><td><strong>5</strong></td></tr>
             <tr><td>DreamActVLA (WM)</td><td>64</td><td>69</td><td>56</td><td><strong>57</strong></td></tr>
           </tbody>
         </table>
 
-        <p>Naive async collapses monotonically as latency grows (58% → 5%); the world model holds 56–69% across the entire 100–400 ms range — and 320+ ms is the <em>measured</em> latency of inference-optimized 7B VLAs, so the right end of this axis is not exotic. The dips at 100 and 300 ms are an artifact worth owning: our predictor was trained with a fixed 4-step horizon, and those delays force zero-padded action windows; its best points sit exactly at the horizons it serves natively, so this curve is a lower bound, improvable with horizon-matched training.</p>
+        <p>Async without WM collapses monotonically as latency grows (58% → 5%); the world model holds 56–69% across the entire 100–400 ms range — and 320+ ms is the <em>measured</em> latency of inference-optimized 7B VLAs, so the right end of this axis is not exotic. The dips at 100 and 300 ms are an artifact worth owning: our predictor was trained with a fixed 4-step horizon, and those delays force zero-padded action windows; its best points sit exactly at the horizons it serves natively, so this curve is a lower bound, improvable with horizon-matched training.</p>
 
         <p><strong>What does the world model cost?</strong> Measured on our hardware: policy chunk inference $T_\pi = 226$ ms (≈ 4.5 control steps — our 200 ms condition is literally this policy's real latency); the world model adds $T_{wm} = 50$ ms per chunk, in series — one control step of extra reaction latency, about a fifth of one policy inference, and chaining predictions for longer delays is nearly free (51.7 ms for two hops). The policy still runs once per chunk, and all $K$ actions are used.</p>
 
