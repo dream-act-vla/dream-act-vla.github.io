@@ -468,7 +468,7 @@
 
         <div class="note-quote">
           <blockquote>
-            <p><strong>Note on the async baseline:</strong> VLASH did not report naive async numbers on LIBERO, noting that static environments make async methods behave similarly. Our evaluation quantifies this directly: running the unmodified π<sub>0.5</sub>-libero checkpoint at delay=4 drops average success by 29.5pp — a meaningful degradation that motivated this work.</p>
+            <p><strong>Note on the async baseline:</strong> VLASH did not report naive async numbers on LIBERO, noting that static environments make async methods behave similarly. But "static" only describes the <em>objects</em> — the robot's own arm and gripper move every step, so a stale image shows the embodiment where it <em>was</em>, not where it <em>is</em> (most acutely in the wrist camera). This is why running the unmodified π<sub>0.5</sub>-libero checkpoint at delay=4 still drops average success by 29.5pp — a meaningful degradation that motivated this work.</p>
           </blockquote>
         </div>
 
