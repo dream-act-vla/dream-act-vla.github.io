@@ -297,11 +297,7 @@
           <p class="caption">The four-step privileged rollout procedure. Both the image and state are captured from the same simulated future instant, ensuring temporal alignment.</p>
         </div>
 
-        <p>The next action chunk is then computed as $\pi(o_{t+N})$ and is ready at the chunk boundary $t+N$ when the robot needs it. Because both $I_{t+N}$ and $s_{t+N}$ are drawn from the same simulated future instant, the observation pair is <strong>temporally aligned</strong> — it lies on the same distribution as the training data.</p>
-
-        <blockquote>
-          <p><strong>Why this is more accurate:</strong> Training data always pairs contemporaneous images and states. Prior approaches like VLASH break this pairing by only rolling forward the state, producing out-of-distribution inputs. Temporal alignment preserves the original pairing by capturing both modalities at the same future instant — no modified fine-tuning needed.</p>
-        </blockquote>
+        <p>The next action chunk is then computed as $\pi(o_{t+N})$ and is ready at the chunk boundary $t+N$ when the robot needs it. Because both $I_{t+N}$ and $s_{t+N}$ are drawn from the same simulated future instant, the observation pair is <strong>temporally aligned</strong></p>
 
         <h2 id="world-model-generalization">DreamActVLA: The Latent World Model</h2>
 
