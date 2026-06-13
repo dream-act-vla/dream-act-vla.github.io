@@ -460,7 +460,7 @@
 
         <div class="note-quote">
           <blockquote>
-            <p><strong>Note on the async baseline:</strong> VLASH did not report naive async numbers on LIBERO, noting that static environments make async methods behave similarly. But "static" only describes the <em>objects</em> — the robot's own arm and gripper move every step, so a stale image shows the embodiment where it <em>was</em>, not where it <em>is</em> (most acutely in the wrist camera). This is why our naive async baseline — re-querying the unmodified π<sub>0.5</sub>-libero checkpoint on the stale observation at delay=4 — still drops average success by 29.5pp, a meaningful degradation that motivated this work.</p>
+            <p><strong>Note on the async baseline:</strong> VLASH did not report naive async numbers on LIBERO, noting that static environments make async methods behave similarly. But "static" only describes the <em>objects</em> — the robot's own arm and gripper move every step, so a stale image shows the embodiment where it <em>was</em>, not where it <em>is</em> (most acutely in the wrist camera). This is why our async no-WM baseline — re-querying the unmodified π<sub>0.5</sub>-libero checkpoint with stale images (proprioceptive state stays current) at delay=4 — still drops average success by 29.5pp, a meaningful degradation that motivated this work.</p>
           </blockquote>
         </div>
 
@@ -524,6 +524,8 @@
         <h2 id="dynamic-tasks-results">Dynamic Tasks</h2>
 
         <p>These experiments use the π<sub>0.5</sub>-LIBERO checkpoint (10-action chunks, 20 Hz control) with our learned latent world model, against a zero-latency <strong>oracle</strong> and <strong>async without WM</strong> (proprioceptive state is current — the roll-forward is free — but the images are $\delta$ steps stale and the full chunk executes late). Each cell is 100 episodes, so treat differences under ~5 points as noise.</p>
+
+        <p><em>A scoping note:</em> this no-WM condition degrades through timing misalignment and visual staleness. Our simulated, low-rate control stack absorbs the jerkiness and chunk-splice discontinuities that dominate asynchronous failures on real hardware (as VLASH observed on its SO-100 tasks) — so these numbers measure the staleness problem in isolation, not real-robot instability, and should not be read as a reproduction of real-world naive-async failures.</p>
 
         <h3 id="drift-sweep">How fast can the world move?</h3>
 
