@@ -206,7 +206,7 @@
         })();
         </script>
 
-        <p>Existing works have taken different approaches to fix this. <a href="https://arxiv.org/abs/2506.07339">RTC</a> uses an inpainting-style procedure that blends the new action chunk with the old one — great for action continuity, but the policy is still looking at a stale camera frame. <a href="https://arxiv.org/abs/2512.01031">VLASH</a> goes further and rolls the robot's joint state forward to the future timestep, but leaves the image stale. So the policy sees a future robot state paired with a past camera frame, a combination it never saw during training. To make this work, VLASH needs a special fine-tuning procedure with temporal offsets baked in; this is doable, but it adds cost and complexity. <a href="https://arxiv.org/abs/2604.02408">F2F-AP</a> takes yet another angle and predicts optical flow by overlaying the flow vectors onto the current frame as a visual hint of future state. However but the policy must be trained from scratch to consume these flow-augmented inputs, and without action conditioning the flow can only estimate where objects drifted, not where the robot's embodiment actually went.</p>
+        <p>Existing works have taken different approaches to fix this. <a href="https://arxiv.org/abs/2506.07339">RTC</a> uses an inpainting-style procedure that blends the new action chunk with the old one (great for action continuity), but the policy is still looking at a stale camera frame. <a href="https://arxiv.org/abs/2512.01031">VLASH</a> goes further and rolls the robot's joint state forward to the future timestep, but leaves the image stale. So the policy sees a future robot state paired with a past camera frame, a combination it never saw during training. To make this work, VLASH needs a special fine-tuning procedure with temporal offsets baked in; this is doable, but it adds cost and complexity. <a href="https://arxiv.org/abs/2604.02408">F2F-AP</a> takes yet another angle and predicts optical flow by overlaying the flow vectors onto the current frame as a visual hint of future state. However but the policy must be trained from scratch to consume these flow-augmented inputs, and without action conditioning the flow can only estimate where objects drifted, not where the robot's embodiment actually went.</p>
 
         <p>And then there's <a href="https://arxiv.org/abs/2602.15922">WAM</a>, which treated the world model as the policy and fine-tuned a 14B video diffusion model (Wan2.1-I2V) to jointly denoise future frames and actions simultaneously via separate decoders. This is impressive, but that 14B model is itself the reason you needed async inference in the first place.</p>
 
@@ -523,9 +523,9 @@
 
         <h2 id="dynamic-tasks-results">Dynamic Tasks</h2>
 
-        <p>These experiments use the π<sub>0.5</sub>-LIBERO checkpoint (10-action chunks, 20 Hz control) with our learned latent world model, against a zero-latency <strong>oracle</strong> and <strong>async without WM</strong> (proprioceptive state is current — the roll-forward is free — but the images are $\delta$ steps stale and the full chunk executes late). Each cell is 100 episodes, so treat differences under ~5 points as noise.</p>
+        <p>These experiments use the π<sub>0.5</sub>-LIBERO checkpoint (10-action chunks, 20 Hz control) with our learned latent world model, against a zero-latency <strong>oracle</strong> and <strong>async without WM</strong> (proprioceptive state is current as the roll-forward is free, but the images are $\delta$ steps stale and the full chunk executes late). Each cell is 100 episodes, so treat differences under ~5 points as noise.</p>
 
-        <p><em>A scoping note:</em> this no-WM condition degrades through timing misalignment and visual staleness. Our simulated, low-rate control stack absorbs the jerkiness and chunk-splice discontinuities that dominate asynchronous failures on real hardware (as VLASH observed on its SO-100 tasks) — so these numbers measure the staleness problem in isolation, not real-robot instability, and should not be read as a reproduction of real-world naive-async failures.</p>
+        <p><em>A scoping note:</em> this no-WM condition degrades through timing misalignment and visual staleness. Our simulated, low-rate control stack absorbs the jerkiness and chunk-splice discontinuities that dominate asynchronous failures on real hardware (as VLASH observed on its SO-100 tasks). Hence these numbers measure the staleness problem in isolation, not true real-robot instability, and should not be interpreted as a reproduction of real-world naive-async failures.</p>
 
         <h3 id="drift-sweep">How fast can the world move?</h3>
 
@@ -539,17 +539,17 @@
             <tr><th>Drift (mm/step)</th><th>Oracle</th><th>Async (no WM)</th><th>DreamActVLA (WM)</th></tr>
           </thead>
           <tbody>
-            <tr><td>0 (static)</td><td>90</td><td>67</td><td>85</td></tr>
-            <tr><td>0.4</td><td>71</td><td>40</td><td>69</td></tr>
-            <tr><td>0.7</td><td>49</td><td>23</td><td>40</td></tr>
-            <tr><td>1.0</td><td>46</td><td>14</td><td>22</td></tr>
+            <tr><td>0 (static)</td><td>90</td><td>67</td><td><strong>85</strong></td></tr>
+            <tr><td>0.4</td><td>71</td><td>40</td><td><strong>69</strong></td></tr>
+            <tr><td>0.7</td><td>49</td><td>23</td><td><strong>40</strong></td></tr>
+            <tr><td>1.0</td><td>46</td><td>14</td><td><strong>22</strong></td></tr>
           </tbody>
         </table>
 
-        <p>Two readings. First, scene motion is expensive for <em>everyone</em> — even the zero-latency oracle falls from 90% to 46%, because objects keep moving during open-loop chunk execution no matter how fresh the observation was. Second, the world model recovers most of the asynchronous gap at mild-to-moderate drift: at 0.4 mm/step it sits at 69% against the oracle's 71%, with the no-WM condition at 40% — asynchronous execution at essentially synchronous accuracy, with a frozen policy.</p>
+        <p>First, scene motion is expensive for <em>everyone</em>, even the zero-latency oracle falls from 90% to 46%, because objects keep moving during open-loop chunk execution no matter how fresh the observation was. Second, the world model recovers most of the asynchronous gap at mild-to-moderate drift: at 0.4 mm/step it sits at 69% against the oracle's 71%, with the no-WM condition at 40% (asynchronous execution at essentially synchronous accuracy with a frozen policy.) </p>
 
         <blockquote>
-          <p><strong>An honest limitation.</strong> At the most aggressive drift (1.0 mm/step) the world model's gains shrink (22%). The reason is structural: our predictor is conditioned on a <em>single</em> stale frame plus the robot's actions — and one frame carries no velocity information, so the model renders drifting objects where the stale frame had them. It corrects the robot's self-motion exactly, but independent scene motion is invisible to any single-frame predictor. The fix is equally structural — condition on two frames so velocity is observable — and is the clear next step (see Limitations).</p>
+          <p><strong>An honest limitation.</strong> At the most aggressive drift (1.0 mm/step) the world model's gains shrink (22%). The reason is clear: our predictor is conditioned on a <em>single</em> stale frame plus the robot's actions, and one frame carries no velocity information. Thus, the model renders drifting objects where the stale frame had them. It corrects the robot's self-motion exactly, but independent scene motion is invisible to any single-frame predictor. The fix would be to condition on two frames so velocity is observable, and is we will explore this next step later (see Limitations).</p>
         </blockquote>
 
         <h3 id="latency-sweep">How much latency can it absorb?</h3>
@@ -569,13 +569,13 @@
           </tbody>
         </table>
 
-        <p>Async without WM collapses monotonically as latency grows (58% → 5%); the world model holds 56–69% across the entire 100–400 ms range — and 320+ ms is the <em>measured</em> latency of inference-optimized 7B VLAs, so the right end of this axis is not exotic. The dips at 100 and 300 ms are an artifact worth owning: our predictor was trained with a fixed 4-step horizon, and those delays force zero-padded action windows; its best points sit exactly at the horizons it serves natively, so this curve is a lower bound, improvable with horizon-matched training.</p>
+        <p>We can note that Async without WM collapses monotonically as latency grows (58% → 5%); the world model holds 56–69% across the entire 100–400 ms range, and 320+ ms is the <em>measured</em> latency of inference-optimized 7B VLAs, so the right end of this axis is not exotic. The dips at 100 and 300 ms are an artifact worth owning: our predictor was trained with a fixed 4-step horizon, and those delays force zero-padded action windows; its best points sit exactly at the horizons it serves natively, so this curve is a lower bound, improvable with horizon-matched training.</p>
 
-        <p><strong>What does the world model cost?</strong> Measured on our hardware: policy chunk inference $T_\pi = 226$ ms (≈ 4.5 control steps — our 200 ms condition is literally this policy's real latency); the world model adds $T_{wm} = 50$ ms per chunk, in series — one control step of extra reaction latency, about a fifth of one policy inference, and chaining predictions for longer delays is nearly free (51.7 ms for two hops). The policy still runs once per chunk, and all $K$ actions are used.</p>
+        <p><strong>What does the world model cost?</strong> It is measured on our hardware: policy chunk inference $T_\pi = 226$ ms (≈ 4.5 control steps, our 200 ms condition is literally this policy's real latency); the world model adds $T_{wm} = 50$ ms per chunk, in series: one control step of extra reaction latency, about a fifth of one policy inference, and chaining predictions for longer delays is almost free (51.7 ms for two hops). The policy still runs once per chunk, and all $K$ actions are used.</p>
 
         <h3 id="rtc-dynamic">Does async fine-tuning escape the scene-motion problem?</h3>
 
-        <p>No. We ran Real-Time Chunking (inpainting, soft masking) on a π<sub>0.5</sub> checkpoint <em>fine-tuned for asynchronous execution</em> (50-action chunks) on the same drifting benchmark. It retains 51.5% on LIBERO-Object (from ~99% static) and 40% on LIBERO-10 (from ~93%): retention ratios of 0.52 and 0.43, statistically indistinguishable from our zero-latency oracle's (0.54, 0.40). A stronger policy, longer chunks, async fine-tuning, and action inpainting all degraded under scene motion <em>exactly as much as having no latency at all</em> — independent scene motion is currently unsolved by every latency mechanism, ours included, which is why the velocity-aware extension above is where this line of work goes next.</p>
+        <p>No. We ran Real-Time Chunking (inpainting, soft masking) on a π<sub>0.5</sub> checkpoint <em>fine-tuned for asynchronous execution</em> (50-action chunks) on the same drifting benchmark. It retains 51.5% on LIBERO-Object (from ~99% static) and 40% on LIBERO-10 (from ~93%): retention ratios of 0.52 and 0.43. This is statistically indistinguishable from our zero-latency oracle's (0.54, 0.40). So a stronger policy, longer chunks, async fine-tuning, and action inpainting, all degraded under scene motion <em>exactly as much as having no latency at all</em>. This independent scene motion is currently unsolved by every latency mechanism, ours included, which is why the velocity-aware extension (see below) is where this line of work goes next.</p>
 
         <hr>
 
