@@ -256,12 +256,12 @@
           </tbody>
         </table>
 
-        <p>We wondered: what if the missing piece isn't a smarter correction, a partial rollout, or a new policy, but simply giving the VLA the one thing it was trained to expect: a temporally-consistent [image, state] observation?</p>
+        <p>So we wondered: what if the missing piece isn't a smarter correction, a partial rollout, or a new policy, but simply giving the VLA the one thing it was trained to expect: a temporally-consistent [image, state] observation?</p>
 
-        <p>The real problem isn't asynchrony: it's the <em>partial</em> roll-forward. Move the state forward but leave the image behind, and you've created a mismatch the policy has never seen. But roll <em>both</em> forward to the same future instant, and the policy gets a perfectly consistent $(I_{t+\Delta}, s_{t+\Delta})$ pair exactly what it was trained on. No distribution shift. No re-training. The policy doesn't even know it's running asynchronously.</p>
+        <p>The real problem wasn't asynchrony: it's the <em>partial</em> roll-forward. If we move the state forward but leave the image behind, and you've created a mismatch the policy has never seen. But roll <em>both</em> forward to the same future instant, and the policy gets a perfectly consistent $(I_{t+\Delta}, s_{t+\Delta})$ pair exactly what it was trained on. No distribution shift. No re-training. The policy doesn't even know it's running asynchronously.</p>
 
         <blockquote>
-          <p><strong>Key Insight:</strong> Temporal alignment is the missing piece. Roll both the image <em>and</em> the state forward to the same future timestep, and async inference becomes indistinguishable from sync. Furthermore, no fine-tuning changes required.</p>
+          <p><strong>Key Insight:</strong> Temporal alignment is the missing piece. In theory if both the image <em>and</em> the state were rolled forward into their future selves, async inference would becomes indistinguishable from sync. Furthermore, no fine-tuning changes required.</p>
         </blockquote>
 
         <p>We validated this in three steps: first with a privileged simulator peek (MuJoCo snapshot/restore) as a proof of concept, then with a learned latent world model that works without the simulator, and finally on a dynamic LIBERO variant where latency actually hurts. The result: <strong>94.2% average success across all four LIBERO suites</strong> vs. 96.8% sync oracle — a gap of just 2.6 points, while the no-WM async baseline collapses to 67.3%.</p>
@@ -269,7 +269,7 @@
         <h2 id="contributions">Contributions</h2>
 
         <ul>
-          <li><strong>Temporally aligned asynchronous inference:</strong> By querying the policy with a temporally aligned future $[\text{image, state}]$ observation, DreamActVLA runs asynchronously with no adjustment to the fine-tuning process — correcting the observation input rather than the action output (RTC) or relying on offset-aware training (VLASH).</li>
+          <li><strong>Temporally aligned asynchronous inference:</strong> By querying the policy with a temporally aligned future $[\text{image, state}]$ observation, DreamActVLA runs asynchronously with no adjustment to the fine-tuning process. It simply corrects the observation input rather than the action output (RTC) or relying on offset-aware training (VLASH).</li>
           <li><strong>Action-conditioned latent world model:</strong> We train a U-Net in the latent space of a frozen Cosmos VAE to predict future visual observations from stale frames and committed actions, removing the simulator dependency of the privileged approach without modifying the VLA policy.</li>
           <li><strong>Dynamic task benchmark:</strong> We develop a LIBERO benchmark variant with wall-clock-tied object motion (instead of the standard static objects) and evaluate the performance of asynchronous methods in this setting.</li>
         </ul>
@@ -318,7 +318,7 @@
           <li><strong>Decode:</strong> The frozen Cosmos decoder maps $\hat{z}_{t+\Delta}$ back to pixel space, producing $\hat{o}_{t+\Delta}$ — the predicted future observation the VLA will act on.</li>
         </ol>
 
-        <p>During training we supervise $\hat{z}_{t+\Delta}$ against the ground-truth future latent obtained by encoding the corresponding future frame from the LIBERO expert demonstration dataset. At inference no dataset or simulator access is needed: the model takes only the stale frame and the committed action chunk and produces the corrected observation in one forward pass.</p>
+        <p>During training, we supervise $\hat{z}_{t+\Delta}$ against the ground-truth future latent obtained by encoding the corresponding future frame from the LIBERO expert demonstration dataset. At inference no dataset or simulator access is needed: the model takes only the stale frame and the committed action chunk and produces the corrected observation in one forward pass.</p>
 
         <blockquote>
           <p><strong>Why residual prediction?</strong> In manipulation tasks most of the scene — the table, the background, lighting — does not change between $t$ and $t+\Delta$. Predicting only <em>what changes</em> ($\Delta z$) is a much simpler regression target than predicting the full future latent from scratch, and it keeps the model compact enough to run in real time alongside policy inference.</p>
@@ -340,14 +340,14 @@
 
         <h1 id="does-our-approach-actually-work">Does Our Approach Actually Work?</h1>
 
-        <h2 id="privileged-future-observations-results">Does Alignment Help? Yes.</h2>
+        <h2 id="privileged-future-observations-results">Does Alignment Help? Yes!</h2>
 
         <p>We evaluate on the <a href="https://arxiv.org/abs/2306.03310">LIBERO benchmark</a> using the <a href="https://arxiv.org/abs/2410.24164">π<sub>0</sub>-LIBERO checkpoint</a> without any modification or fine-tuning. Each of the below <strong>three conditions</strong> is evaluated over <strong>50 rollouts per task</strong>:</p>
 
         <ul>
           <li><strong>Sync</strong>: standard synchronous baseline.</li>
           <li><strong>Future Obs (Privileged)</strong>: async with simulator oracle providing the aligned future observation.</li>
-          <li><strong>Future-State Only</strong>: async with only the state rolled forward — the VLASH-style mismatch, serving as the failure baseline.</li>
+          <li><strong>Future-State Only</strong>: async with only the state rolled forward — the VLASH-style mismatch to serve as the failure baseline.</li>
         </ul>
 
         <p>Each policy call produces an action chunk of length $N = 15$, and the asynchronous conditions trigger the next inference $K = 10$ steps before the current chunk ends. All other parameters are identical across conditions, so any difference in outcome reflects the inference strategy alone.</p>
@@ -411,7 +411,7 @@
         })();
         </script>
 
-        <p>The privileged condition achieves <strong>92.5% success rate</strong> (only a 1% reduction relative to Sync) while reducing mean task completion time to <strong>7.61 s</strong> — a <strong>1.17× speedup</strong>. This confirms that temporal alignment alone is sufficient for near-oracle performance. Because the privileged access gives us a perfect future observation, these results establish the upper-bound oracle that a learned world model should aim to match.</p>
+        <p>The privileged condition achieves <strong>92.5% success rate</strong> (only a 1% reduction relative to Sync) while reducing mean task completion time to <strong>7.61 s</strong>, a <strong>1.17× speedup</strong>. This confirms that temporal alignment alone is sufficient for near-oracle performance. Because the privileged access gives us a perfect future observation, these results establish the upper-bound oracle that a learned world model should aim to match.</p>
 
         <h3 id="future-state-only-ablation">Future-State-Only Ablation</h3>
 
@@ -440,7 +440,7 @@
           <p class="caption">Side-by-side task execution: <strong>Sync oracle</strong> (left) succeeds; <strong>Async no-WM</strong> (centre) fails due to stale observations; <strong>Async + DreamActVLA WM</strong> (right) succeeds by correcting the visual input before each inference step.</p>
         </div>
 
-        <p>We evaluate the latent world model on all four LIBERO suites using <a href="https://arxiv.org/abs/2504.16054">π<sub>0.5</sub>-libero</a> via the OpenPI server — <strong>50 rollouts per task, 10 tasks per suite, 500 episodes per suite</strong>. The async conditions use a fixed inference delay of <strong>4 steps</strong>. Three conditions are compared: the official synchronous π<sub>0.5</sub> baseline, async inference with no world model (stale observations), and async inference with DreamActVLA's latent WM providing corrected observations.</p>
+        <p>We then evaluated the latent world model on all four LIBERO suites using <a href="https://arxiv.org/abs/2504.16054">π<sub>0.5</sub>-libero</a> via the OpenPI server: <strong>50 rollouts per task, 10 tasks per suite, 500 episodes per suite</strong>. The async conditions use a fixed inference delay of <strong>4 steps</strong>. Three conditions are compared: the official synchronous π<sub>0.5</sub> baseline, async inference with no world model (stale observations), and async inference with DreamActVLA's latent WM providing corrected observations.</p>
 
         <div class="figure">
           <canvas id="wmResultsChart" style="max-height:360px"></canvas>
@@ -514,7 +514,7 @@
 
         <p>These experiments use the π<sub>0.5</sub>-LIBERO checkpoint (10-action chunks, 20 Hz control) with our learned latent world model, against a zero-latency <strong>oracle</strong> and <strong>async without WM</strong> (proprioceptive state is current as the roll-forward is free, but the images are $\delta$ steps stale and the full chunk executes late). Each cell is 100 episodes, so treat differences under ~5 points as noise.</p>
 
-        <p><em>A scoping note:</em> this no-WM condition degrades through timing misalignment and visual staleness. Our simulated control stack absorbs the jerkiness and chunk-splice discontinuities that can dominate asynchronous failures on real hardware (as VLASH observed on its SO-100 tasks). Hence, these numbers measure the staleness problem in isolation, not true real-robot instability, and should not be interpreted as a reproduction of real-world naive-async failures.</p>
+        <p><em>As a scoping note:</em> this no-WM condition degrades through timing misalignment and visual staleness. Our simulated control stack absorbs the jerkiness and chunk-splice discontinuities that can dominate asynchronous failures on real hardware (as VLASH observed on its SO-100 tasks). Hence, these numbers measure the staleness problem in isolation, not true real-robot instability, and should not be interpreted as a reproduction of real-world naive-async failures.</p>
 
         <h3 id="drift-sweep">How fast can the world move?</h3>
 
@@ -545,7 +545,7 @@
         </div>
 
         <blockquote>
-          <p><strong>A notable limitation.</strong> At the most aggressive object velocity drifts (1.0 mm/step) the world model's gains shrink to 22%. This reason is straightforward: our predictor sees a single stale frame plus the robot's actions, and one frame carries no velocity information, so the model renders drifting objects right where the stale frame had them. It nails the robot's own motion, but a fast, independently moving object is essentially invisible to it. The fix is to give the model a sense of motion, for example by conditioning on two consecutive frames, which is one of the directions we discuss in the conclusion.</p>
+          <p><strong>A notable limitation.</strong> At the most aggressive object velocity drifts (1.0 mm/step) the world model's gains shrink to 22%. This reason is quite straightforward: our predictor sees a single stale frame plus the robot's actions, and one frame carries no velocity information, so the model renders drifting objects right where the stale frame had them. It nails the robot's own motion, but a fast, independently moving object is essentially invisible to it. The fix is to give the model a sense of motion, for example by conditioning on two consecutive frames, which is one of the directions we discuss in the conclusion.</p>
         </blockquote>
 
         <div class="figure">
@@ -561,26 +561,26 @@
         </div>
 
 
-        <p>We can note that Async without WM collapses monotonically as latency grows (58% → 5%); the world model holds 56–69% across the entire 100–400 ms range, and 320+ ms is the <em>measured</em> latency of inference-optimized 7B VLAs, so the right end of this axis is not exotic. The dips at 100 and 300 ms are an artifact worth owning: our predictor was trained with a fixed 4-step horizon, and those delays force zero-padded action windows; its best points sit exactly at the horizons it serves natively, so this curve is a lower bound, improvable with horizon-matched training.</p>
+        <p>We can note that Async without WM collapses monotonically as latency grows (58% → 5%); the world model holds 56–69% across the entire 100–400 ms range, and 320+ ms is the <em>measured</em> latency of inference-optimized 7B VLAs, so the right end of this axis is not unusual. The dips at 100 and 300 ms are an artifact worth owning: our predictor was trained with a fixed 4-step horizon, and those delays force zero-padded action windows; its best points sit exactly at the horizons it serves natively, so this curve is a lower bound, improvable with horizon-matched training.</p>
 
-        <p><strong>What does the world model cost?</strong> On our hardware, a policy chunk takes $T_\pi = 226$ ms to generate (≈ 4.5 control steps, which is why our 200 ms condition is essentially this policy's real latency). The world model adds just $T_{wm} = 50$ ms on top, run once per chunk before the policy sees the corrected frame. Now in practice that is a single extra control step of reaction latency, roughly a fifth of one policy inference, and it barely grows with delay (two-hop prediction for longer horizons costs only 51.7 ms). Crucially, the policy still runs once per chunk and every action in the chunk is used, so we buy temporal alignment without sacrificing throughput.</p>
+        <p><strong>What does the world model cost?</strong> On our hardware, a policy chunk takes $T_\pi = 226$ ms to generate (≈ 4.5 control steps, which is why our 200 ms condition is essentially this policy's real latency). The world model adds just $T_{wm} = 50$ ms on top, run once per chunk before the policy sees the corrected frame. Now in practice, that is a single extra control step of reaction latency, roughly a fifth of one policy inference. It barely grows with delay (two-hop prediction for longer horizons costs only 51.7 ms). To note, the policy still runs once per chunk and every action in the chunk is used, so we get that temporal alignment without sacrificing throughput.</p>
 
         <div class="figure">
           <video src="assets/videos/wm_delay8_object_success.mp4" autoplay muted loop playsinline style="width:100%;border-radius:6px;"></video>
           <p class="caption">DreamActVLA at $\delta=8$ (400 ms) on drifting LIBERO-Object and a successful grasp. The world model's prediction (center) stays aligned with ground truth (right) despite an eight-step-stale input (left).</p>
         </div>
 
-        <h3 id="rtc-dynamic">Can other async techniques escape the scene-motion problem?</h3>
+        <h3 id="rtc-dynamic">Would a smoothing async method do better?</h3>
 
-        <p>No. We ran <a href="https://arxiv.org/abs/2506.07339">Real-Time Chunking</a> on a π<sub>0.5</sub> checkpoint <em>fine-tuned for asynchronous execution</em> (50-action chunks) on the same drifting benchmark. It retains 51.5% on LIBERO-Object (from ~99% static) and 40% on LIBERO-10 (from ~93%): retention ratios of 0.52 and 0.43. This is statistically indistinguishable from our zero-latency oracle's (0.54, 0.40). So a stronger policy, longer chunks, async fine-tuning, and action inpainting, all degraded under scene motion <em>exactly as much as having no latency at all</em>. This independent scene motion is currently unsolved by every latency mechanism, ours included, which is why the velocity-aware extension (see below) is where this line of work goes next.</p>
+        <p>No, and the reason is quite revealing. We ran <a href="https://arxiv.org/abs/2506.07339">Real-Time Chunking</a> on a π<sub>0.5</sub> checkpoint <em>fine-tuned for asynchronous execution</em> (50-action chunks) on the same drifting benchmark. It retains 51.5% on LIBERO-Object (from ~99% static) and 40% on LIBERO-10 (from ~93%), retention ratios of 0.52 and 0.43. Those are statistically indistinguishable from our <em>zero-latency oracle's</em> retention (0.54 and 0.40). In other words, a stronger policy with longer chunks, async fine-tuning, and action inpainting loses exactly as much to scene motion as a method with no latency at all. That tells us scene motion is not really a latency problem: it is a separate axis that none of today's async techniques touch, ours included. Closing it is what the velocity-aware extension below is for.</p>
 
         <h1 id="conclusion">Discussion and Conclusion</h1>
 
-        <p>We have shown that <strong>temporal alignment</strong>, meaning the policy conditions on a consistent estimate of the present, is enough to recover most of the accuracy lost to asynchronous inference, with no changes to the VLA or its fine-tuning. A privileged simulator oracle first confirmed the hypothesis (92.5% vs 93.5% sync), and DreamActVLA then realized it with a learned latent world model, recovering <strong>+26.8pp</strong> over the async no-WM baseline to reach <strong>94.2%</strong> average success across all four LIBERO suites, within 2.7pp of the synchronous inference variant. The framing is what ties it together: RTC corrects the action output and VLASH rolls the state forward with offset-aware fine-tuning, while DreamActVLA corrects the observation input and leaves the policy frozen. Because it acts on a different part of the pipeline, it could in principle be combined with either.</p>
+        <p>We have shown that <strong>temporal alignment</strong>, meaning the policy conditions on a consistent estimate of the present, is enough to recover most of the accuracy lost to asynchronous inference, with no changes to the VLA or its fine-tuning. A privileged simulator oracle first confirmed the hypothesis (92.5% vs 93.5% sync), and DreamActVLA then realized it with a learned latent world model, recovering <strong>+26.8pp</strong> over the async no-WM baseline to reach an average success of <strong>94.2%</strong> across all four LIBERO suites, within 2.7pp of the synchronous inference variant. Once again, it is also worth being clear about where DreamActVLA sits relative to prior work: RTC corrects the action output, and VLASH rolls the state forward with offset-aware fine-tuning, while DreamActVLA corrects the observation input and leaves the policy frozen. Because it acts on a different part of the pipeline, it could in principle be combined with either.</p>
 
         <h3 id="future-work">Future Work</h3>
         <ul>
-          <li><strong>Tracking moving objects.</strong> Now the biggest gap is the one above: a single-frame predictor cannot see velocity, so independently moving objects may slip past it. Conditioning the world model on two consecutive frames, or some sort of auxiliary motion signals like optical flow, object trajectories, would let it predict where things are heading rather than only where they were.</li>
+          <li><strong>A velocity-aware world model.</strong> The biggest gap at the moment is the single-frame predictor cannot see velocity, so moving objects can slip past it. Conditioning the world model on two consecutive frames, or on auxiliary motion signals like optical flow or object trajectories, would give it a sense of motion, letting it predict where things are heading rather than only where they were. We expect this to be the single largest lever on the dynamic benchmark, since it targets the one failure mode (scene motion) that no current async method, including ours, addresses.</li>
           <li><strong>Matching the prediction horizon to the delay.</strong> Our world model was trained at a fixed 4-step horizon, which is why its accuracy dips at delays it has to pad or chain to reach. Training across a wide range of horizons should smooth this out and likely raise the numbers we report here, as those curves are effectively a lower bound.</li>
           <li><strong>Real-robot deployment.</strong> Everything here runs in simulation, where we can fall back on a privileged oracle to sanity-check predictions. But on hardware there is no such fallback, so the next step is to validate that the world model's frames are good enough to drive a real arm under genuine inference latency.</li>
         </ul>
