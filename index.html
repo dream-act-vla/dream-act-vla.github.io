@@ -266,7 +266,7 @@
         <h2 id="contributions">Contributions</h2>
 
         <ul>
-          <li><strong>More accurate asynchronous inference:</strong> By querying a policy with temporally aligned future $[\text{image, state}]$ observations, DreamActVLA achieves asynchronous inference without any adjustment to the fine-tuning process — a strictly more accurate approach than prior methods like RTC and VLASH that rely on temporally disjoint inputs or offset-aware training.</li>
+          <li><strong>Temporally aligned asynchronous inference:</strong> By querying the policy with a temporally aligned future $[\text{image, state}]$ observation, DreamActVLA runs asynchronously with no adjustment to the fine-tuning process — correcting the observation input rather than the action output (RTC) or relying on offset-aware training (VLASH).</li>
           <li><strong>Action-conditioned latent world model:</strong> We train a U-Net in the latent space of a frozen Cosmos VAE to predict future visual observations from stale frames and committed actions, removing the simulator dependency of the privileged approach without modifying the VLA policy.</li>
           <li><strong>Dynamic task benchmark:</strong> A new LIBERO benchmark variant with wall-clock-tied object motion where asynchronous methods offer a clear advantage.</li>
         </ul>
@@ -587,9 +587,9 @@
 
         <h1 id="conclusion">Conclusion</h1>
 
-        <p>We have shown that <strong>temporally aligned future observations</strong> enable more accurate asynchronous inference for VLA policies without any modification to the fine-tuning procedure. By rolling forward both the image and proprioceptive state to the same future timestep, DreamActVLA keeps policy inputs in-distribution and achieves a 1.17× speedup with negligible impact on task success — a strictly more accurate approach than existing methods like RTC and VLASH.</p>
+        <p>We have shown that <strong>temporal alignment</strong> — ensuring the policy conditions on a consistent estimate of the present — is sufficient to recover most of the accuracy lost to asynchronous inference, with no changes to the VLA or its fine-tuning. A privileged simulator oracle first confirmed the hypothesis (92.5% vs 93.5% sync), and DreamActVLA then realized it with a learned latent world model, recovering <strong>+26.8pp</strong> over the naive async baseline to reach <strong>94.2%</strong> average success across all four LIBERO suites — within 2.7pp of the synchronous oracle. Unlike RTC, which corrects the action output, and VLASH, which requires offset-aware fine-tuning, DreamActVLA corrects the observation input and leaves the policy untouched — an orthogonal approach that could be combined with either.</p>
 
-        <p>Our approach opens two directions for future work: (1) deploying DreamActVLA on physical robots using learned world models such as COSMOS, and (2) extending the dynamic task benchmark to evaluate robustness under varying object velocities and more complex scene dynamics.</p>
+        <p>Looking ahead, we plan to deploy DreamActVLA on physical robots, where no simulator is available to validate predictions. And while the world model already captures the robot's own motion in the frame, it is not yet clear how well it handles scenes with faster or independently moving objects — to close that gap, we plan to condition the world model on additional signals such as optical flow or object trajectories.</p>
 
         <hr>
 
