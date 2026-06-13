@@ -26,8 +26,12 @@
     <div class="header-inner">
       <a href="index.html" class="site-logo">DreamActVLA</a>
       <nav class="site-nav">
+        <a href="#introduction">Intro</a>
         <a href="#how-we-implemented-our-approach">Method</a>
+        <!-- <a href="#dynamic-tasks">Benchmark</a> -->
         <a href="#does-our-approach-actually-work">Results</a>
+        <a href="#conclusion">Conclusion</a>
+        <a href="#citation">Cite</a>
       </nav>
     </div>
   </header>
@@ -39,7 +43,7 @@
         <p class="post-subtitle">Can asynchronous inference work without any modifications to the VLA fine-tuning process?</p>
         <div class="post-meta">
           <span class="meta-authors">Chi Zhang, Mboutidem Mkpong, Richard Chen</span>
-          <span class="meta-affiliation">UC Irvine</span>
+          <!-- <span class="meta-affiliation">UC Irvine</span> -->
           <span class="meta-date">June 8, 2026</span>
         </div>
       </div>
@@ -255,7 +259,7 @@
 
         <p>This got us thinking: <strong>what if the answer was simpler?</strong></p>
 
-        <p>The real problem isn't asynchrony — it's the <em>partial</em> roll-forward. Move the state forward but leave the image behind, and you've created a mismatch the policy has never seen. But roll <em>both</em> forward to the same future instant, and the policy gets a perfectly consistent $(I_{t+\Delta}, s_{t+\Delta})$ pair — exactly what it was trained on. No distribution shift. No re-training. The policy doesn't even know it's running asynchronously.</p>
+        <p>The real problem isn't asynchrony: it's the <em>partial</em> roll-forward. Move the state forward but leave the image behind, and you've created a mismatch the policy has never seen. But roll <em>both</em> forward to the same future instant, and the policy gets a perfectly consistent $(I_{t+\Delta}, s_{t+\Delta})$ pair exactly what it was trained on. No distribution shift. No re-training. The policy doesn't even know it's running asynchronously.</p>
 
         <blockquote>
           <p><strong>Key Insight:</strong> Temporal alignment is the missing ingredient. Roll both the image <em>and</em> the state forward to the same future timestep, and async inference becomes indistinguishable from sync — no fine-tuning changes required.</p>
@@ -325,26 +329,16 @@
           <p><strong>Why residual prediction?</strong> In manipulation tasks most of the scene — the table, the background, lighting — does not change between $t$ and $t+\Delta$. Predicting only <em>what changes</em> ($\Delta z$) is a much simpler regression target than predicting the full future latent from scratch, and it keeps the model compact enough to run in real time alongside policy inference.</p>
         </blockquote>
 
-        <h2 id="shifting-the-prediction-interval">Shifting the Prediction Interval</h2>
-
-        <p>The cleanest way to see what DreamActVLA does is in terms of intervals. Under inference delay $\delta$, a chunk is <em>planned</em> for the prediction interval $[t, t+K)$ but <em>executed</em> over the shifted interval $[t+\delta, t+\delta+K)$ — every action lands $\delta$ steps late, applied to a world that has moved on. That misalignment is what we call <strong>async without WM</strong>, and it is what collapses in our results below.</p>
-
-        <blockquote>
-          <p><strong>Our fix: shift the prediction interval itself.</strong> By synthesizing the future observation $\hat{o}_{t+\delta}$ before querying the policy, the chunk is planned for $[t+\delta, t+\delta+K)$ — exactly the interval it will execute over. Perfect alignment, all $K$ actions intact, and the policy itself never changes. This is VLASH's insight — condition on the execution-time state — completed: VLASH rolls forward only the proprioceptive state and must fine-tune the policy to tolerate the resulting state-image mismatch; we roll forward the image too, so a <em>frozen</em> policy accepts the input as-is.</p>
-        </blockquote>
-
-        <p>The static experiments above show this works when the robot is the only thing moving. The harder question is what happens when the <em>world</em> moves during the latency window — that's what the dynamic benchmark tests.</p>
-
         <h2 id="dynamic-tasks">Dynamic Tasks</h2>
 
-        <p>The privileged and world-model conditions above both use the standard (static) LIBERO suites, where objects sit still until the robot interacts with them — inference latency costs time, but it rarely changes <em>what</em> the right action is. To test whether temporal alignment matters when the world itself keeps moving during inference, we built a <strong>dynamic LIBERO</strong> variant in which goal-relevant objects slide across the table at constant velocity. A policy acting on a stale observation is aiming at where the object <em>was</em>, not where it <em>is</em> — exactly the regime where temporally aligned observations should matter most.</p>
+        <p>The privileged and world-model conditions above both use the standard (static) LIBERO suites, where objects sit still until the robot touches them. Latency costs time there but rarely changes <em>what</em> the right action is. We wanted to test the harder case, where the world keeps moving while the policy thinks, so we built a <strong>dynamic LIBERO</strong> variant in which the goal objects slide across the table at a constant speed. Now a policy acting on a stale frame is aiming at where the object used to be, not where it is, which is exactly the regime where catching up to the present should matter most.</p>
 
-        <p>Getting this benchmark right took several design iterations:</p>
+        <p>Getting this benchmark to measure the right thing took a few iterations, and a few of the design choices turned out to matter a lot:</p>
         <ul>
-          <li><strong>Sim-time drift, not wall-clock.</strong> Objects move a fixed distance per <em>control step</em> (e.g. 0.4 mm/step ≈ 0.8 cm/s), and are decoupled from how long the evaluation harness happens to compute. Every method faces identical physics; latency is modeled explicitly by a delay parameter $\delta$ (in 50 ms control steps). An earlier wall-clock version silently punished whichever condition ran slowest on our GPU, an unfortunate contamination we only caught by comparing per-episode wall-times.</li>
-          <li><strong>Goal-scoped drift.</strong> So only objects named in the task's goal predicates move. Drifting every free object shoves items off shelves and buries the workspace in clutter — the scene self-destructs rather than perturbs.</li>
-          <li><strong>Predicate freezing.</strong> Objects stop drifting once their goal predicate is satisfied. Without this, multi-stage tasks are <em>unwinnable</em>: the first delivered item slides back out of the basket while the robot fetches the second, and even a zero-latency oracle scores 0%.</li>
-          <li><strong>Well-posedness criteria.</strong> Tasks whose goals are defined by spatial relations ("the bowl <em>next to</em> the ramekin") are excluded as drift invalidates the instruction itself. The drift rates are calibrated so a zero-latency oracle retains meaningful success (~50–75%), keeping the benchmark discriminative rather than saturated at either end.</li>
+          <li><strong>Drift is tied to control steps, not wall-clock time.</strong> Objects move a fixed distance per control step (say 0.4 mm/step, about 0.8 cm/s), so how long our GPU happens to take has no effect on the physics. Every method sees the same world, and we model latency explicitly with a delay parameter $\delta$ (counted in 50 ms control steps). Our first version tied drift to wall-clock time, which quietly handicapped whichever condition ran slowest on the GPU. We only noticed by comparing per-episode timings.</li>
+          <li><strong>Only the goal objects drift.</strong> If every free object moves, the scene falls apart: items slide off shelves and pile up in the workspace. So we restrict drift to the objects named in the task's goal, which perturbs the task without destroying it.</li>
+          <li><strong>Objects freeze once they are placed.</strong> An object stops drifting as soon as its goal condition is met. Without this, multi-step tasks become impossible: the first item slides back out of the basket while the robot goes for the second, and even a perfect zero-latency policy scores 0%.</li>
+          <li><strong>We drop tasks where drift breaks the instruction.</strong> Goals defined by spatial relations (like "the bowl next to the ramekin") stop making sense once things move, so we leave them out. We also tune the drift speed so a zero-latency policy still lands around 50 to 75%, which keeps the benchmark hard enough to be interesting but not so hard that everything fails.</li>
         </ul>
 
         <hr>
@@ -426,15 +420,15 @@
 
         <h3 id="future-state-only-ablation">Future-State-Only Ablation</h3>
 
-        <p>We also tested a <strong>future-state-only</strong> condition — rolling forward just the state while keeping the current camera image. This is essentially what VLASH does at inference time, but applied to a stock π<sub>0</sub> checkpoint without any offset fine-tuning.</p>
+        <p>We also tested a <strong>future-state-only</strong> condition, where we rolled forward just the state while keeping the current camera image. This is essentially what VLASH does at inference time, but applied to a stock π<sub>0</sub> checkpoint without any offset fine-tuning.</p>
 
         <p>Here the Task Success Rate falls to <strong>27.6%</strong>. The policy simply can't handle the mismatched input. This is exactly the failure mode that motivated DreamActVLA: if you're going to roll forward, roll forward <em>everything</em>. Align both modalities and the policy doesn't even notice it's running asynchronously.</p>
 
         <h2 id="world-model-generalization-results">DreamActVLA: Learning to Align in the Real World</h2>
 
-        <p>The privileged results confirm that temporal alignment is sufficient for near-oracle performance. But can our latent world model replicate this at scale — replacing the simulator peek with a learned prediction across all LIBERO suites.</p>
+        <p>The privileged results shows that temporal alignment is sufficient for near-oracle performance. But can our latent world model replicate this at scale (replacing the simulator peek with a learned prediction across all LIBERO suites.)</p>
 
-        <p>Before examining task success rates, we verify that the world model produces visually plausible predictions. The video below shows one episode step-by-step: the stale delayed observation the policy would normally see, the WM-predicted frame it actually receives, and the ground-truth current frame from the simulator — for both the primary and wrist cameras.</p>
+        <p>Before examining task success rates, we verify that the world model produces visually plausible predictions. The video below shows one episode step-by-step: the stale delayed observation the policy would normally see, the WM-predicted frame it actually receives, and the ground-truth current frame from the simulator (for both the primary and wrist cameras.)</p>
 
         <div class="figure">
           <div class="video-col-labels">
@@ -525,7 +519,7 @@
 
         <p>These experiments use the π<sub>0.5</sub>-LIBERO checkpoint (10-action chunks, 20 Hz control) with our learned latent world model, against a zero-latency <strong>oracle</strong> and <strong>async without WM</strong> (proprioceptive state is current as the roll-forward is free, but the images are $\delta$ steps stale and the full chunk executes late). Each cell is 100 episodes, so treat differences under ~5 points as noise.</p>
 
-        <p><em>A scoping note:</em> this no-WM condition degrades through timing misalignment and visual staleness. Our simulated, low-rate control stack absorbs the jerkiness and chunk-splice discontinuities that dominate asynchronous failures on real hardware (as VLASH observed on its SO-100 tasks). Hence these numbers measure the staleness problem in isolation, not true real-robot instability, and should not be interpreted as a reproduction of real-world naive-async failures.</p>
+        <p><em>A scoping note:</em> this no-WM condition degrades through timing misalignment and visual staleness. Our simulated control stack absorbs the jerkiness and chunk-splice discontinuities that can dominate asynchronous failures on real hardware (as VLASH observed on its SO-100 tasks). Hence, these numbers measure the staleness problem in isolation, not true real-robot instability, and should not be interpreted as a reproduction of real-world naive-async failures.</p>
 
         <h3 id="drift-sweep">How fast can the world move?</h3>
 
@@ -554,7 +548,7 @@
         </div>
 
         <blockquote>
-          <p><strong>An honest limitation.</strong> At the most aggressive drift (1.0 mm/step) the world model's gains shrink (22%). The reason is clear: our predictor is conditioned on a <em>single</em> stale frame plus the robot's actions, and one frame carries no velocity information. Thus, the model renders drifting objects where the stale frame had them. It corrects the robot's self-motion exactly, but independent scene motion is invisible to any single-frame predictor. The fix would be to condition on two frames so velocity is observable, and is we will explore this next step later (see Limitations).</p>
+          <p><strong>A notable limitation.</strong> At the most aggressive object velocity drifts (1.0 mm/step) the world model's gains shrink to 22%. This reason is straightforward: our predictor sees a single stale frame plus the robot's actions, and one frame carries no velocity information, so the model renders drifting objects right where the stale frame had them. It nails the robot's own motion, but a fast, independently moving object is essentially invisible to it. The fix is to give the model a sense of motion, for example by conditioning on two consecutive frames, which is one of the directions we discuss in the conclusion.</p>
         </blockquote>
 
         <div class="figure">
@@ -588,15 +582,20 @@
           <p class="caption">DreamActVLA at $\delta=8$ (400 ms) on drifting LIBERO-Object and a successful grasp. The world model's prediction (center) stays aligned with ground truth (right) despite an eight-step-stale input (left).</p>
         </div>
 
-        <h3 id="rtc-dynamic">Does async fine-tuning escape the scene-motion problem?</h3>
+        <h3 id="rtc-dynamic">Can async fine-tuning on certain datasets escape the scene-motion problem?</h3>
 
         <p>No. We ran Real-Time Chunking (inpainting, soft masking) on a π<sub>0.5</sub> checkpoint <em>fine-tuned for asynchronous execution</em> (50-action chunks) on the same drifting benchmark. It retains 51.5% on LIBERO-Object (from ~99% static) and 40% on LIBERO-10 (from ~93%): retention ratios of 0.52 and 0.43. This is statistically indistinguishable from our zero-latency oracle's (0.54, 0.40). So a stronger policy, longer chunks, async fine-tuning, and action inpainting, all degraded under scene motion <em>exactly as much as having no latency at all</em>. This independent scene motion is currently unsolved by every latency mechanism, ours included, which is why the velocity-aware extension (see below) is where this line of work goes next.</p>
 
         <h1 id="conclusion">Discussion and Conclusion</h1>
 
-        <p>We have shown that <strong>temporal alignment</strong> — ensuring the policy conditions on a consistent estimate of the present — is sufficient to recover most of the accuracy lost to asynchronous inference, with no changes to the VLA or its fine-tuning. A privileged simulator oracle first confirmed the hypothesis (92.5% vs 93.5% sync), and DreamActVLA then realized it with a learned latent world model, recovering <strong>+26.8pp</strong> over the naive async baseline to reach <strong>94.2%</strong> average success across all four LIBERO suites — within 2.7pp of the synchronous oracle. Unlike RTC, which corrects the action output, and VLASH, which requires offset-aware fine-tuning, DreamActVLA corrects the observation input and leaves the policy untouched — an orthogonal approach that could be combined with either.</p>
+        <p>We have shown that <strong>temporal alignment</strong>, meaning the policy conditions on a consistent estimate of the present, is enough to recover most of the accuracy lost to asynchronous inference, with no changes to the VLA or its fine-tuning. A privileged simulator oracle first confirmed the hypothesis (92.5% vs 93.5% sync), and DreamActVLA then realized it with a learned latent world model, recovering <strong>+26.8pp</strong> over the async no-WM baseline to reach <strong>94.2%</strong> average success across all four LIBERO suites, within 2.7pp of the synchronous oracle. The framing is what ties it together: RTC corrects the action output and VLASH rolls the state forward with offset-aware fine-tuning, while DreamActVLA corrects the observation input and leaves the policy frozen. Because it acts on a different part of the pipeline, it could in principle be combined with either.</p>
 
-        <p>Looking ahead, we plan to deploy DreamActVLA on physical robots, where no simulator is available to validate predictions. And while the world model already captures the robot's own motion in the frame, it is not yet clear how well it handles scenes with faster or independently moving objects — to close that gap, we plan to condition the world model on additional signals such as optical flow or object trajectories.</p>
+        <h3 id="future-work">Future Work</h3>
+        <ul>
+          <li><strong>Tracking moving objects.</strong> Now the biggest gap is the one above: a single-frame predictor cannot see velocity, so independently moving objects may slip past it. Conditioning the world model on two consecutive frames, or some sort of auxiliary motion signals like optical flow, object trajectories, would let it predict where things are heading rather than only where they were.</li>
+          <li><strong>Matching the prediction horizon to the delay.</strong> Our world model was trained at a fixed 4-step horizon, which is why its accuracy dips at delays it has to pad or chain to reach. Training across a wide range of horizons should smooth this out and likely raise the numbers we report here, as those curves are effectively a lower bound.</li>
+          <li><strong>Real-robot deployment.</strong> Everything here runs in simulation, where we can fall back on a privileged oracle to sanity-check predictions. But on hardware there is no such fallback, so the next step is to validate that the world model's frames are good enough to drive a real arm under genuine inference latency.</li>
+        </ul>
 
         <hr>
 
@@ -608,6 +607,19 @@
           <li><strong>DreamActVLA:</strong> <a href="https://github.com/Somdit/DreamActVLA">github.com/Somdit/DreamActVLA</a></li>
           <li><strong>Dynamic Tasks:</strong> <a href="https://github.com/SpaceQuark/DreamActVLA">github.com/SpaceQuark/DreamActVLA</a></li>
         </ul>
+
+        <hr>
+
+        <h1 id="citation">Citation</h1>
+
+        <p>If you find this work useful, please cite it as:</p>
+
+        <pre class="citation-block"><code>@misc{dreamactvla2026,
+  title  = {Temporally Aligned Asynchronous Inference for Vision-Language-Action Models},
+  author = {Zhang, Chi and Mkpong, Mboutidem and Chen, Richard},
+  year   = {2026},
+  url    = {https://dream-act-vla.github.io}
+}</code></pre>
 
       </div>
     </article>
