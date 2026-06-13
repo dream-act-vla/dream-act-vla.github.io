@@ -453,7 +453,7 @@
 
         <div class="note-quote">
           <blockquote>
-            <p><strong>Note on the async baseline:</strong> VLASH did not report naive async numbers on LIBERO, noting that static environments make async methods behave similarly. But "static" only describes the <em>objects</em> — the robot's own arm and gripper move every step, so a stale image shows the embodiment where it <em>was</em>, not where it <em>is</em> (most acutely in the wrist camera). This is why our async no-WM baseline — re-querying the unmodified π<sub>0.5</sub>-libero checkpoint with stale images (proprioceptive state stays current) at delay=4 — still drops average success by 29.5pp, a meaningful degradation that motivated this work.</p>
+            <p><strong>Note on the async baseline:</strong> Our naive-async baseline switches to the newly arrived chunk from its first action rather than resuming at the estimated chunk-overlap offset. A more careful chunk-alignment estimate can narrow the no-WM baseline's performance drop in average success somewhat. Thus, this figure is best interpreted as an upper bound on naive-async degradation rather than a precise measure.</p>
           </blockquote>
         </div>
 
