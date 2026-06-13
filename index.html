@@ -53,7 +53,7 @@
         <div class="tldr-content">
           <ul>
             <li>VLA policies are slow to run (~120ms per inference call), forcing the robot to idle between action chunks.</li>
-            <li>We implement <strong>DreamActVLA</strong>, a latent world model that predicts the current visual observation from the stale frame and committed actions, keeping the VLA input in-distribution with <strong>zero changes</strong> to the fine-tuning process.</li>
+            <li>We implement <strong>DreamActVLA</strong>, a latent world model that predicts the future visual observation from the stale frame and committed actions, keeping the VLA input in-distribution with <strong>zero changes</strong> to the fine-tuning process.</li>
             <li>Results on all four LIBERO suites (2,000 episodes): <strong>94.2% average success rate</strong> (vs 96.8% sync oracle), recovering <strong>+26.8pp</strong> over the async no-WM baseline.</li>
             <li>Additionally, we develop a set of "dynamic" evaluation tasks in LIBERO and evaluate whether our approach helps when goal objects move during inference.</li>
           </ul>
