@@ -548,9 +548,19 @@
 
         <p>First, scene motion is expensive for <em>everyone</em>, even the zero-latency oracle falls from 90% to 46%, because objects keep moving during open-loop chunk execution no matter how fresh the observation was. Second, the world model recovers most of the asynchronous gap at mild-to-moderate drift: at 0.4 mm/step it sits at 69% against the oracle's 71%, with the no-WM condition at 40% (asynchronous execution at essentially synchronous accuracy with a frozen policy.) </p>
 
+        <div class="figure">
+          <video src="assets/videos/wm_delay4_object_success.mp4" autoplay muted loop playsinline style="width:100%;border-radius:6px;"></video>
+          <p class="caption">DreamActVLA at $\delta=4$ (200 ms, this policy's real latency) on drifting LIBERO-Object. Each row shows, left&rarr;right, the <em>stale</em> camera the policy would otherwise see, the world model's <em>prediction</em> of the present, and the <em>ground truth</em>. The prediction tracks the truth while the stale view lags, and the grasp succeeds.</p>
+        </div>
+
         <blockquote>
           <p><strong>An honest limitation.</strong> At the most aggressive drift (1.0 mm/step) the world model's gains shrink (22%). The reason is clear: our predictor is conditioned on a <em>single</em> stale frame plus the robot's actions, and one frame carries no velocity information. Thus, the model renders drifting objects where the stale frame had them. It corrects the robot's self-motion exactly, but independent scene motion is invisible to any single-frame predictor. The fix would be to condition on two frames so velocity is observable, and is we will explore this next step later (see Limitations).</p>
         </blockquote>
+
+        <div class="figure">
+          <video src="assets/videos/wm_delay4_libero10_failure.mp4" autoplay muted loop playsinline style="width:100%;border-radius:6px;"></video>
+          <p class="caption">A failure case on the harder long-horizon LIBERO-10 suite. The world model attempts to corrects the arm's self-motion, but the multi-stage task and continued object drift defeat it. This is the type of task what we believe velocity-aware predictor should target.</p>
+        </div>
 
         <h3 id="latency-sweep">How much latency can it absorb?</h3>
 
@@ -564,14 +574,19 @@
             <tr><th>Latency</th><th>100 ms</th><th>200 ms</th><th>300 ms</th><th>400 ms</th></tr>
           </thead>
           <tbody>
-            <tr><td>Async (no WM)</td><td>58</td><td>40</td><td>16</td><td><strong>5</strong></td></tr>
-            <tr><td>DreamActVLA (WM)</td><td>64</td><td>69</td><td>56</td><td><strong>57</strong></td></tr>
+            <tr><td>Async (no WM)</td><td>58%</td><td>40<%/td><td>16%</td><td><strong>5%</strong></td></tr>
+            <tr><td>DreamActVLA (WM)</td><td>64%</td><td>69%</td><td>56%</td><td><strong>57%</strong></td></tr>
           </tbody>
         </table>
 
         <p>We can note that Async without WM collapses monotonically as latency grows (58% → 5%); the world model holds 56–69% across the entire 100–400 ms range, and 320+ ms is the <em>measured</em> latency of inference-optimized 7B VLAs, so the right end of this axis is not exotic. The dips at 100 and 300 ms are an artifact worth owning: our predictor was trained with a fixed 4-step horizon, and those delays force zero-padded action windows; its best points sit exactly at the horizons it serves natively, so this curve is a lower bound, improvable with horizon-matched training.</p>
 
         <p><strong>What does the world model cost?</strong> It is measured on our hardware: policy chunk inference $T_\pi = 226$ ms (≈ 4.5 control steps, our 200 ms condition is literally this policy's real latency); the world model adds $T_{wm} = 50$ ms per chunk, in series: one control step of extra reaction latency, about a fifth of one policy inference, and chaining predictions for longer delays is almost free (51.7 ms for two hops). The policy still runs once per chunk, and all $K$ actions are used.</p>
+
+        <div class="figure">
+          <video src="assets/videos/wm_delay8_object_success.mp4" autoplay muted loop playsinline style="width:100%;border-radius:6px;"></video>
+          <p class="caption">DreamActVLA at $\delta=8$ (400 ms) on drifting LIBERO-Object and a successful grasp. The world model's prediction (center) stays aligned with ground truth (right) despite an eight-step-stale input (left).</p>
+        </div>
 
         <h3 id="rtc-dynamic">Does async fine-tuning escape the scene-motion problem?</h3>
 
