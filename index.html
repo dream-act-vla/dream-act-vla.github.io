@@ -422,7 +422,7 @@
         })();
         </script>
 
-        <p>The privileged condition maintains <strong>92.5% success rate</strong> (only a 1% reduction relative to Sync) while reducing mean task completion time to <strong>7.61 s</strong> — a <strong>1.17× speedup</strong>. This confirms that temporal alignment alone is sufficient for near-oracle performance. Because the privileged access gives us a perfect future observation, these results establish the upper-bound oracle that a learned world model should aim to match.</p>
+        <p>The privileged condition achieves <strong>92.5% success rate</strong> (only a 1% reduction relative to Sync) while reducing mean task completion time to <strong>7.61 s</strong> — a <strong>1.17× speedup</strong>. This confirms that temporal alignment alone is sufficient for near-oracle performance. Because the privileged access gives us a perfect future observation, these results establish the upper-bound oracle that a learned world model should aim to match.</p>
 
         <h3 id="future-state-only-ablation">Future-State-Only Ablation</h3>
 
@@ -574,14 +574,14 @@
             <tr><th>Latency</th><th>100 ms</th><th>200 ms</th><th>300 ms</th><th>400 ms</th></tr>
           </thead>
           <tbody>
-            <tr><td>Async (no WM)</td><td>58%</td><td>40<%/td><td>16%</td><td><strong>5%</strong></td></tr>
+            <tr><td>Async (no WM)</td><td>58%</td><td>40</td><td>16%</td><td><strong>5%</strong></td></tr>
             <tr><td>DreamActVLA (WM)</td><td>64%</td><td>69%</td><td>56%</td><td><strong>57%</strong></td></tr>
           </tbody>
         </table>
 
         <p>We can note that Async without WM collapses monotonically as latency grows (58% → 5%); the world model holds 56–69% across the entire 100–400 ms range, and 320+ ms is the <em>measured</em> latency of inference-optimized 7B VLAs, so the right end of this axis is not exotic. The dips at 100 and 300 ms are an artifact worth owning: our predictor was trained with a fixed 4-step horizon, and those delays force zero-padded action windows; its best points sit exactly at the horizons it serves natively, so this curve is a lower bound, improvable with horizon-matched training.</p>
 
-        <p><strong>What does the world model cost?</strong> It is measured on our hardware: policy chunk inference $T_\pi = 226$ ms (≈ 4.5 control steps, our 200 ms condition is literally this policy's real latency); the world model adds $T_{wm} = 50$ ms per chunk, in series: one control step of extra reaction latency, about a fifth of one policy inference, and chaining predictions for longer delays is almost free (51.7 ms for two hops). The policy still runs once per chunk, and all $K$ actions are used.</p>
+        <p><strong>What does the world model cost?</strong> On our hardware, a policy chunk takes $T_\pi = 226$ ms to generate (≈ 4.5 control steps, which is why our 200 ms condition is essentially this policy's real latency). The world model adds just $T_{wm} = 50$ ms on top, run once per chunk before the policy sees the corrected frame. Now in practice that is a single extra control step of reaction latency, roughly a fifth of one policy inference, and it barely grows with delay (two-hop prediction for longer horizons costs only 51.7 ms). Crucially, the policy still runs once per chunk and every action in the chunk is used, so we buy temporal alignment without sacrificing throughput.</p>
 
         <div class="figure">
           <video src="assets/videos/wm_delay8_object_success.mp4" autoplay muted loop playsinline style="width:100%;border-radius:6px;"></video>
@@ -592,17 +592,7 @@
 
         <p>No. We ran Real-Time Chunking (inpainting, soft masking) on a π<sub>0.5</sub> checkpoint <em>fine-tuned for asynchronous execution</em> (50-action chunks) on the same drifting benchmark. It retains 51.5% on LIBERO-Object (from ~99% static) and 40% on LIBERO-10 (from ~93%): retention ratios of 0.52 and 0.43. This is statistically indistinguishable from our zero-latency oracle's (0.54, 0.40). So a stronger policy, longer chunks, async fine-tuning, and action inpainting, all degraded under scene motion <em>exactly as much as having no latency at all</em>. This independent scene motion is currently unsolved by every latency mechanism, ours included, which is why the velocity-aware extension (see below) is where this line of work goes next.</p>
 
-        <hr>
-
-        <h1 id="discussion">Discussion</h1>
-
-        <h2 id="limitations">Limitations</h2>
-
-        <!-- TODO: Add discussion of limitations -->
-
-        <hr>
-
-        <h1 id="conclusion">Conclusion</h1>
+        <h1 id="conclusion">Discussion and Conclusion</h1>
 
         <p>We have shown that <strong>temporal alignment</strong> — ensuring the policy conditions on a consistent estimate of the present — is sufficient to recover most of the accuracy lost to asynchronous inference, with no changes to the VLA or its fine-tuning. A privileged simulator oracle first confirmed the hypothesis (92.5% vs 93.5% sync), and DreamActVLA then realized it with a learned latent world model, recovering <strong>+26.8pp</strong> over the naive async baseline to reach <strong>94.2%</strong> average success across all four LIBERO suites — within 2.7pp of the synchronous oracle. Unlike RTC, which corrects the action output, and VLASH, which requires offset-aware fine-tuning, DreamActVLA corrects the observation input and leaves the policy untouched — an orthogonal approach that could be combined with either.</p>
 
@@ -616,7 +606,7 @@
         <ul>
           <li><strong>Privileged Future Observations:</strong> <a href="https://github.com/themboutidem/future-obs-pi0">github.com/themboutidem/future-obs-pi0</a></li>
           <li><strong>DreamActVLA:</strong> <a href="https://github.com/Somdit/DreamActVLA">github.com/Somdit/DreamActVLA</a></li>
-          <li><strong>Dynamic Tasks:</strong> <a href="https://github.com/SpaceQuark/DreamActVLA">github.com/Somdit/DreamActVLA</a></li>
+          <li><strong>Dynamic Tasks:</strong> <a href="https://github.com/SpaceQuark/DreamActVLA">github.com/SpaceQuark/DreamActVLA</a></li>
         </ul>
 
       </div>
