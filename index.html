@@ -325,23 +325,15 @@
           <p><strong>Why residual prediction?</strong> In manipulation tasks most of the scene — the table, the background, lighting — does not change between $t$ and $t+\Delta$. Predicting only <em>what changes</em> ($\Delta z$) is a much simpler regression target than predicting the full future latent from scratch, and it keeps the model compact enough to run in real time alongside policy inference.</p>
         </blockquote>
 
-        <h2 id="one-principle-two-estimators">One Principle, Two Estimators</h2>
+        <h2 id="shifting-the-prediction-interval">Shifting the Prediction Interval</h2>
 
-        <p>Working through these experiments forced us to a cleaner way of seeing the whole async-VLA landscape. Every fix for inference latency (e.g. ours, RTC's, VLASH's) is secretly enforcing the same rule:</p>
+        <p>The cleanest way to see what DreamActVLA does is in terms of intervals. Under inference delay $\delta$, a chunk is <em>planned</em> for the prediction interval $[t, t+K)$ but <em>executed</em> over the shifted interval $[t+\delta, t+\delta+K)$ — every action lands $\delta$ steps late, applied to a world that has moved on. That misalignment is naive async, and it is what collapses in our results below.</p>
 
         <blockquote>
-          <p><strong>The action executed at time $t$ must be conditioned on an estimate of the world at time $t$:</strong> $\;A_t = \pi(\hat{o}_t)$. The methods differ only in <em>where the estimate of the present comes from</em>.</p>
+          <p><strong>Our fix: shift the prediction interval itself.</strong> By synthesizing the future observation $\hat{o}_{t+\delta}$ before querying the policy, the chunk is planned for $[t+\delta, t+\delta+K)$ — exactly the interval it will execute over. Perfect alignment, all $K$ actions intact, and the policy itself never changes. This is VLASH's insight — condition on the execution-time state — completed: VLASH rolls forward only the proprioceptive state and must fine-tune the policy to tolerate the resulting state-image mismatch; we roll forward the image too, so a <em>frozen</em> policy accepts the input as-is.</p>
         </blockquote>
 
-        <p>There are exactly two places to get it:</p>
-
-        <p><strong>The implicit estimator: just skip the stale actions.</strong> A chunk planned from an observation $\delta$ steps old contains actions targeting times $[t{-}\delta, t{-}\delta{+}1, \dots]$, so its $\delta$-th action is the policy's <em>own intrnal forecast</em> of the right action for now. Discard the first $\delta$ actions, execute from index $\delta$, and execution is back on schedule. Zero compute, zero training, just five lines of code. This is the base scheme real-time chunking builds on, and we evaluate it as a first-class baseline, something async-VLA papers (including the ones above) rarely report on its own. Spoiler: it is <em>much</em> stronger than naive async, and you should be suspicious of any latency method that doesn't compare against it 😲</p>
-
-        <p>However, the forecast lives <em>inside the chunk</em>. This imposes three particular limits: it wastes $\delta$ of every 10 generated actions; on a single inference stream it needs the surviving actions to cover the next inference window, capping deployability at $\delta \le 5$ (250 ms for a 10-action chunk at 20 Hz); and the forecast is frozen at what the policy saw $\delta$ steps ago, meaning independently moving objects are invisible to it.</p>
-
-        <p><strong>The explicit estimator: synthesize the present.</strong> This is our DreamActVLA: predict the current observation with the world model, query the unmodified policy, execute from the chunk head. All 10 actions usable, one inference per chunk, no ceiling on $\delta$. And because the estimate lives in observation space, it is the only form that could ever incorporate scene motion the policy hasn't seen.</p>
-
-        <p>The static experiments above can't separate these two: when only the robot moves, any self-motion correction looks sufficient. That's exactly why we built the dynamic benchmark.</p>
+        <p>The static experiments above show this works when the robot is the only thing moving. The harder question is what happens when the <em>world</em> moves during the latency window — that's what the dynamic benchmark tests.</p>
 
         <h2 id="dynamic-tasks">Dynamic Tasks</h2>
 
@@ -530,6 +522,58 @@
         </script>
 
         <h2 id="dynamic-tasks-results">Dynamic Tasks</h2>
+
+        <p>These experiments use the π<sub>0.5</sub>-LIBERO checkpoint (10-action chunks, 20 Hz control) with our learned latent world model, against a zero-latency <strong>oracle</strong> and <strong>naive async</strong> (the full chunk executes $\delta$ steps late — the standard asynchronous deployment, e.g. SmolVLA's). Each cell is 100 episodes, so treat differences under ~5 points as noise.</p>
+
+        <h3 id="drift-sweep">How fast can the world move?</h3>
+
+        <div class="figure">
+          <img src="assets/img/fig2_drift_sweep_blog.png" alt="Success rate vs object drift rate for oracle, naive async, and world model on libero_object at delay 4">
+          <p class="caption">Success rate vs. drift rate (LIBERO-Object, $\delta = 4$ ≈ 200 ms — which happens to be this policy's <em>measured</em> inference latency on our hardware). Top axis: object speed in cm/s.</p>
+        </div>
+
+        <table class="comparison-table">
+          <thead>
+            <tr><th>Drift (mm/step)</th><th>Oracle</th><th>Naive async</th><th>DreamActVLA (WM)</th></tr>
+          </thead>
+          <tbody>
+            <tr><td>0 (static)</td><td>90</td><td>67</td><td>85</td></tr>
+            <tr><td>0.4</td><td>71</td><td>40</td><td>69</td></tr>
+            <tr><td>0.7</td><td>49</td><td>23</td><td>40</td></tr>
+            <tr><td>1.0</td><td>46</td><td>14</td><td>22</td></tr>
+          </tbody>
+        </table>
+
+        <p>Two readings. First, scene motion is expensive for <em>everyone</em> — even the zero-latency oracle falls from 90% to 46%, because objects keep moving during open-loop chunk execution no matter how fresh the observation was. Second, the world model recovers most of the asynchronous gap at mild-to-moderate drift: at 0.4 mm/step it sits at 69% against the oracle's 71%, with naive async at 40% — asynchronous execution at essentially synchronous accuracy, with a frozen policy.</p>
+
+        <blockquote>
+          <p><strong>An honest limitation.</strong> At the most aggressive drift (1.0 mm/step) the world model's gains shrink (22%). The reason is structural: our predictor is conditioned on a <em>single</em> stale frame plus the robot's actions — and one frame carries no velocity information, so the model renders drifting objects where the stale frame had them. It corrects the robot's self-motion exactly, but independent scene motion is invisible to any single-frame predictor. The fix is equally structural — condition on two frames so velocity is observable — and is the clear next step (see Limitations).</p>
+        </blockquote>
+
+        <h3 id="latency-sweep">How much latency can it absorb?</h3>
+
+        <div class="figure">
+          <img src="assets/img/fig3_latency_sweep_blog.png" alt="Success rate vs inference latency, 100 to 400 ms, showing naive async collapsing while the world model sustains performance">
+          <p class="caption">Success rate vs. inference latency (LIBERO-Object, 0.4 mm/step drift). Shaded band: zero-latency oracle (71–76%).</p>
+        </div>
+
+        <table class="comparison-table">
+          <thead>
+            <tr><th>Latency</th><th>100 ms</th><th>200 ms</th><th>300 ms</th><th>400 ms</th></tr>
+          </thead>
+          <tbody>
+            <tr><td>Naive async</td><td>58</td><td>40</td><td>16</td><td><strong>5</strong></td></tr>
+            <tr><td>DreamActVLA (WM)</td><td>64</td><td>69</td><td>56</td><td><strong>57</strong></td></tr>
+          </tbody>
+        </table>
+
+        <p>Naive async collapses monotonically as latency grows (58% → 5%); the world model holds 56–69% across the entire 100–400 ms range — and 320+ ms is the <em>measured</em> latency of inference-optimized 7B VLAs, so the right end of this axis is not exotic. The dips at 100 and 300 ms are an artifact worth owning: our predictor was trained with a fixed 4-step horizon, and those delays force zero-padded action windows; its best points sit exactly at the horizons it serves natively, so this curve is a lower bound, improvable with horizon-matched training.</p>
+
+        <p><strong>What does the world model cost?</strong> Measured on our hardware: policy chunk inference $T_\pi = 226$ ms (≈ 4.5 control steps — our 200 ms condition is literally this policy's real latency); the world model adds $T_{wm} = 50$ ms per chunk, in series — one control step of extra reaction latency, about a fifth of one policy inference, and chaining predictions for longer delays is nearly free (51.7 ms for two hops). The policy still runs once per chunk, and all $K$ actions are used.</p>
+
+        <h3 id="rtc-dynamic">Does async fine-tuning escape the scene-motion problem?</h3>
+
+        <p>No. We ran Real-Time Chunking (inpainting, soft masking) on a π<sub>0.5</sub> checkpoint <em>fine-tuned for asynchronous execution</em> (50-action chunks) on the same drifting benchmark. It retains 51.5% on LIBERO-Object (from ~99% static) and 40% on LIBERO-10 (from ~93%): retention ratios of 0.52 and 0.43, statistically indistinguishable from our zero-latency oracle's (0.54, 0.40). A stronger policy, longer chunks, async fine-tuning, and action inpainting all degraded under scene motion <em>exactly as much as having no latency at all</em> — independent scene motion is currently unsolved by every latency mechanism, ours included, which is why the velocity-aware extension above is where this line of work goes next.</p>
 
         <hr>
 
