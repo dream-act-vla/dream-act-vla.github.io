@@ -64,7 +64,7 @@
 
         <h1 id="introduction">Introduction</h1>
 
-        <p>Vision-language-action (VLA) policies used for controlling robots are typically deployed with synchronous execution. If you watch demo videos from papers like <a href="https://arxiv.org/abs/2410.24164">π<sub>0</sub></a>, <a href="https://arxiv.org/abs/2504.16054">π<sub>0.5</sub></a>, or <a href="https://arxiv.org/abs/2406.09246">OpenVLA</a>, you'll notice that the robot's motion is a series of movements with short pauses in between. Those pauses are the robot running inference — basically thinking about what to do next. While it's thinking, the robot either idles or blindly executes stale commands while the next plan is being computed. That's a problem, especially if anything in the scene is moving.</p>
+        <p>Vision-language-action (VLA) policies used for controlling robots are typically deployed with synchronous execution. If you watch demo videos from papers like <a href="https://arxiv.org/abs/2410.24164">π<sub>0</sub></a>, <a href="https://arxiv.org/abs/2504.16054">π<sub>0.5</sub></a>, or <a href="https://arxiv.org/abs/2406.09246">OpenVLA</a>, you'll notice that the robot's motion is a series of movements with short pauses in between. Those pauses are the robot running inference. While it's thinking, the robot either idles or blindly executes stale commands while the next plan is being computed. That's a problem, especially if anything in the scene is moving.</p>
 
         <p>The obvious fix is to use <strong>asynchronous inference</strong>, where we start computing the next action chunk while the robot is still executing the current one. However, this creates a sneaky problem: by the time inference finishes, the observation that triggered it is stale.</p>
 
